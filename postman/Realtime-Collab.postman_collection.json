@@ -1,0 +1,106 @@
+{
+  "info": {
+    "name": "Realtime Collab",
+    "_postman_id": "d86b93d7-494b-42ff-bf61-3641776d8a6c",
+    "description": "Auth and document APIs for the realtime collaboration platform.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"owner@example.com\",\n  \"password\": \"secret123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"owner@example.com\",\n  \"password\": \"secret123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "Create Document",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Team Notes\",\n  \"collaborators\": [\n    {\n      \"email\": \"viewer@example.com\",\n      \"role\": \"viewer\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/docs",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "docs"]
+        }
+      }
+    },
+    {
+      "name": "Get Documents",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/docs",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "docs"]
+        }
+      }
+    },
+    {
+      "name": "Update Document",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"<p>Realtime content update</p>\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/docs/{{docId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "docs", "{{docId}}"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "docId",
+      "value": ""
+    }
+  ]
+}
