@@ -20,3 +20,29 @@ Weekly submission (if required)
 - Run tests and builds, fix any failures.
 - Update `CHANGELOG.md`.
 - Push branch and open PR to `main` with verification checklist.
+
+Pre-commit/local checks
+- Add a pre-commit hook (recommended) to prevent committing secrets and to run quick lint/tests. Example using `husky` and `lint-staged`:
+
+```json
+// package.json (example)
+"husky": { "hooks": { "pre-commit": "lint-staged" } },
+"lint-staged": { "*.ts": ["npm run lint --silent"] }
+```
+
+- Add a basic git hook to block `.env` files in commits:
+
+```bash
+cat > .git/hooks/pre-commit <<'HOOK'
+#!/bin/sh
+if git diff --cached --name-only | grep -E '\.env$' >/dev/null; then
+	echo "Commit aborted: remove .env files from staging."
+	exit 1
+fi
+HOOK
+chmod +x .git/hooks/pre-commit
+```
+
+Repository scanning
+- Use GitHub's secret scanning or `git-secrets` locally in CI to block common secret patterns.
+

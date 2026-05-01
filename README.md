@@ -11,6 +11,28 @@ Google Docs style collaborative editor built with:
 - `Clerk Authentication`
 - `Socket.io`
 
+## Quickstart
+
+1. Copy env examples for backend and frontend and fill secret values locally (do NOT commit them):
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+2. Start backend and frontend in development:
+
+```bash
+# backend
+cd backend && npm ci && npm run dev
+
+# frontend (new terminal)
+cd frontend && npm ci && npm run dev
+```
+
+3. Visit the frontend at `http://localhost:5173` and sign in via Clerk.
+
+
 ## Project structure
 
 ```bash
