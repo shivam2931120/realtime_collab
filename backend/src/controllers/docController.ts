@@ -3,6 +3,7 @@ import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 import { trackDocumentEvent } from "../utils/analytics";
+import { isMissingTableError } from "../utils/dbErrors";
 import { invalidateCachePrefix, publishEvent } from "../utils/redis";
 
 // For notifications, we insert into Supabase directly instead of Mongoose
@@ -13,6 +14,15 @@ type ShareInput = {
   email: string;
   role: "editor" | "viewer";
 };
+
+type ShareTarget = {
+  email: string;
+  role: "editor" | "viewer";
+  userId?: string;
+};
+
+const normalizeRole = (role: unknown): "editor" | "viewer" =>
+  role === "viewer" ? "viewer" : "editor";
 
 const getRoleForUser = (document: any, userId: string) => {
   if (document.owner_id === userId) {
@@ -81,54 +91,55 @@ const enrichWithUserEmails = async (documents: any[]) => {
   }
 };
 
-const parseCollaborators = async (input: unknown, ownerId: string) => {
+const parseShareTargets = async (input: unknown, ownerId: string) => {
   if (!Array.isArray(input) || input.length === 0) {
-    return [];
+    return [] as ShareTarget[];
   }
 
-  const cleanedItems = input
+  const cleanedItems: Array<{ email: string; role: "editor" | "viewer" }> = input
     .filter(Boolean)
     .map((item) => item as Partial<ShareInput>)
     .filter((item) => item.email)
     .map((item) => ({
       email: String(item.email).trim().toLowerCase(),
-      role: item.role === "viewer" ? "viewer" : "editor",
-    }));
+      role: normalizeRole(item.role),
+    }))
+    .filter((item) => Boolean(item.email));
 
   const uniqueEmails = [...new Set(cleanedItems.map((item) => item.email))];
-  
-  if (uniqueEmails.length === 0) return [];
+  if (uniqueEmails.length === 0) return [] as ShareTarget[];
 
   const usersResponse = await clerkClient.users.getUserList({
     emailAddress: uniqueEmails,
   });
 
-  const usersByEmail = new Map();
+  const usersByEmail = new Map<string, any>();
   const rawUsers: any[] = Array.isArray(usersResponse) ? usersResponse : (usersResponse as any).data || [];
   rawUsers.forEach((u: any) => {
     const email = u.emailAddresses[0]?.emailAddress;
     if (email) usersByEmail.set(email.toLowerCase(), u);
   });
 
-  return cleanedItems.reduce<Array<{ user: string; role: "editor" | "viewer"; email: string }>>((acc, item) => {
+  const targets: ShareTarget[] = [];
+  cleanedItems.forEach((item) => {
     const matchedUser = usersByEmail.get(item.email);
-
-    if (!matchedUser || matchedUser.id === ownerId) {
-      return acc;
+    if (matchedUser && matchedUser.id !== ownerId) {
+      if (!targets.some((existing) => existing.userId === matchedUser.id)) {
+        targets.push({
+          email: matchedUser.emailAddresses[0]?.emailAddress || item.email,
+          role: item.role,
+          userId: matchedUser.id,
+        });
+      }
+      return;
     }
 
-    if (acc.some((existing) => existing.user === matchedUser.id)) {
-      return acc;
+    if (!targets.some((existing) => existing.email === item.email)) {
+      targets.push({ email: item.email, role: item.role });
     }
+  });
 
-    acc.push({
-      user: matchedUser.id,
-      role: item.role === "viewer" ? "viewer" : "editor",
-      email: matchedUser.emailAddresses[0]?.emailAddress,
-    });
-
-    return acc;
-  }, []);
+  return targets;
 };
 
 import { sendDocumentSharedEmail } from "../utils/mailer";
@@ -139,14 +150,16 @@ const createShareNotifications = async ({
   actorId,
   actorEmail,
   addedCollaborators,
+  shareTargets,
 }: {
   documentId: string;
   documentTitle: string;
   actorId: string;
   actorEmail: string;
   addedCollaborators: Array<{ user: string; role: "editor" | "viewer"; email?: string }>;
+  shareTargets: ShareTarget[];
 }) => {
-  if (!addedCollaborators.length) return;
+  if (!addedCollaborators.length && !shareTargets.length) return;
 
   const notifications = addedCollaborators.flatMap((item) => [
     {
@@ -168,16 +181,27 @@ const createShareNotifications = async ({
   await supabase.from("notifications").insert(notifications);
 
   const documentUrl = `${process.env.CLIENT_URL}/editor/${documentId}`;
-  for (const collab of addedCollaborators) {
-    if (collab.email) {
-      await sendDocumentSharedEmail({
-        to: collab.email,
-        actorEmail,
-        documentTitle,
-        documentUrl,
-        role: collab.role,
-      }).catch(err => console.error("Failed to send share email", err));
+  const sentTo = new Set<string>();
+  const actorEmailKey = actorEmail.toLowerCase();
+
+  const allTargets: Array<{ email: string; role: "editor" | "viewer" }> = [
+    ...shareTargets.map((target) => ({ email: target.email, role: target.role })),
+  ];
+
+  for (const target of allTargets) {
+    const emailKey = target.email.toLowerCase();
+    if (!target.email || sentTo.has(emailKey) || emailKey === actorEmailKey) {
+      continue;
     }
+
+    sentTo.add(emailKey);
+    await sendDocumentSharedEmail({
+      to: target.email,
+      actorEmail,
+      documentTitle,
+      documentUrl,
+      role: target.role,
+    }).catch((err) => console.error("Failed to send share email", err));
   }
 };
 
@@ -190,7 +214,10 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
     const title = String(req.body.title || "").trim();
     if (!title) return res.status(400).json({ message: "Document title required hai" });
 
-    const collaborators = await parseCollaborators(req.body.collaborators, userId);
+    const shareTargets = await parseShareTargets(req.body.collaborators, userId);
+    const collaborators = shareTargets.filter((item) => item.userId) as Array<
+      ShareTarget & { userId: string }
+    >;
     const folderId = req.body.folder_id || null;
 
     const { data: docData, error: docError } = await supabase
@@ -203,10 +230,10 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
     if (docError || !docData) throw docError;
 
     if (collaborators.length > 0) {
-      const collabsToInsert = collaborators.map(c => ({
+      const collabsToInsert = collaborators.map((c) => ({
         document_id: docData.id,
-        user_id: c.user,
-        role: c.role
+        user_id: c.userId,
+        role: c.role,
       }));
       await supabase.from("document_collaborators").insert(collabsToInsert);
     }
@@ -228,7 +255,12 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
       documentTitle: docData.title,
       actorId: userId,
       actorEmail: actorEmail,
-      addedCollaborators: collaborators,
+      addedCollaborators: collaborators.map((item) => ({
+        user: item.userId,
+        role: item.role,
+        email: item.email,
+      })),
+      shareTargets,
     });
 
     await trackDocumentEvent({
@@ -249,6 +281,11 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
     return res.status(201).json({ document: shapeDocument(enrichedDoc, userId) });
   } catch (error) {
     console.error("Create document failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using documents.",
+      });
+    }
     return res.status(500).json({ message: "Document create nahi ho paaya", details: String(error) });
   }
 };
@@ -299,6 +336,11 @@ export const getDocuments = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error("Fetch documents failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using documents.",
+      });
+    }
     return res.status(500).json({ message: "Documents load nahi ho paaye" });
   }
 };
@@ -335,6 +377,11 @@ export const getDocumentById = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error("Fetch document failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using documents.",
+      });
+    }
     return res.status(500).json({ message: "Document open nahi ho paaya" });
   }
 };
@@ -385,23 +432,26 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     let nextCollaborators = doc.document_collaborators || [];
 
     if (wantsShareUpdate) {
-      const parsedCollaborators = await parseCollaborators(req.body.collaborators, userId);
+      const parsedShareTargets = await parseShareTargets(req.body.collaborators, userId);
+      const parsedCollaborators = parsedShareTargets.filter((item) => item.userId) as Array<
+        ShareTarget & { userId: string }
+      >;
       
       // Delete old ones and insert new ones
       await supabase.from("document_collaborators").delete().eq("document_id", documentId);
       if (parsedCollaborators.length > 0) {
-        const collabsToInsert = parsedCollaborators.map(c => ({
+        const collabsToInsert = parsedCollaborators.map((c) => ({
           document_id: documentId,
-          user_id: c.user,
-          role: c.role
+          user_id: c.userId,
+          role: c.role,
         }));
         await supabase.from("document_collaborators").insert(collabsToInsert);
       }
 
-      nextCollaborators = parsedCollaborators.map(c => ({ user_id: c.user, role: c.role }));
+      nextCollaborators = parsedCollaborators.map((c) => ({ user_id: c.userId, role: c.role }));
 
       const existingCollabIds = new Set(doc.document_collaborators?.map((c: any) => c.user_id));
-      const addedCollaborators = parsedCollaborators.filter(c => !existingCollabIds.has(c.user));
+      const addedCollaborators = parsedCollaborators.filter((c) => !existingCollabIds.has(c.userId));
 
       const actor = await clerkClient.users.getUser(userId);
       const actorEmail = actor.emailAddresses[0]?.emailAddress || "unknown@example.com";
@@ -411,7 +461,12 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
         documentTitle: updates.title || doc.title,
         actorId: userId,
         actorEmail: actorEmail,
-        addedCollaborators,
+        addedCollaborators: addedCollaborators.map((item) => ({
+          user: item.userId,
+          role: item.role,
+          email: item.email,
+        })),
+        shareTargets: parsedShareTargets,
       });
 
       await trackDocumentEvent({
@@ -455,7 +510,9 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     }
 
     doc.title = updates.title || doc.title;
-    doc.content = updates.content || doc.content;
+    if (wantsContentUpdate) {
+      doc.content = updates.content;
+    }
     if (wantsFolderUpdate) doc.folder_id = updates.folder_id;
     doc.updated_at = updates.updated_at;
     doc.document_collaborators = nextCollaborators;
@@ -467,6 +524,11 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error("Update document failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using documents.",
+      });
+    }
     return res.status(500).json({ message: "Document update nahi ho paaya" });
   }
 };
@@ -502,6 +564,11 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
     return res.json({ message: "Document deleted" });
   } catch (error) {
     console.error("Delete document failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using documents.",
+      });
+    }
     return res.status(500).json({ message: "Document delete nahi ho paaya" });
   }
 };

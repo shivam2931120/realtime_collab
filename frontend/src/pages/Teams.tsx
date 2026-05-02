@@ -34,7 +34,7 @@ const TeamsPage = () => {
 
       return doc.title.toLowerCase().includes(query) || participantEmails.includes(query);
     });
-  }, [docs, searchParams]);
+  }, [docs, searchParams, activeTab]);
 
   const tabConfig: Array<{ key: "owner" | "editor" | "viewer"; label: string }> = [
     { key: "owner", label: "Owner Docs" },

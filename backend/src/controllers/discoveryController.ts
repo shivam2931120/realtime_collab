@@ -8,6 +8,7 @@ import { Document, Packer, Paragraph, TextRun } from "docx";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
 import { trackDocumentEvent } from "../utils/analytics";
+import { isMissingTableError } from "../utils/dbErrors";
 import { getCache, setCache, invalidateCachePrefix, publishEvent } from "../utils/redis";
 
 const turndown = new TurndownService({ headingStyle: "atx", bulletListMarker: "-" });
@@ -250,6 +251,11 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
     return res.json(payload);
   } catch (error) {
     console.error("Search documents failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using search/tags.",
+      });
+    }
     return res.status(500).json({ message: "Search failed" });
   }
 };
@@ -287,6 +293,11 @@ export const getPopularTags = async (req: AuthRequest, res: Response) => {
     return res.json(payload);
   } catch (error) {
     console.error("Get tags failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using tags.",
+      });
+    }
     return res.status(500).json({ message: "Tags fetch failed" });
   }
 };
@@ -307,6 +318,11 @@ export const getDocumentTags = async (req: AuthRequest, res: Response) => {
     return res.json({ tags: tagsByDoc.get(req.params.id) || [] });
   } catch (error) {
     console.error("Get document tags failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using tags.",
+      });
+    }
     return res.status(500).json({ message: "Document tags fetch failed" });
   }
 };
@@ -340,6 +356,11 @@ export const updateDocumentTags = async (req: AuthRequest, res: Response) => {
     return res.json({ tags });
   } catch (error) {
     console.error("Update document tags failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using tags.",
+      });
+    }
     return res.status(500).json({ message: "Document tags update failed" });
   }
 };
@@ -787,6 +808,11 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error("Get analytics failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using analytics.",
+      });
+    }
     return res.status(500).json({ message: "Analytics load failed" });
   }
 };

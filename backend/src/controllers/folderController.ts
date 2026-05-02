@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
+import { isMissingTableError } from "../utils/dbErrors";
 
 export const createFolder = async (req: AuthRequest, res: Response) => {
   try {
@@ -44,6 +45,11 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
     return res.json({ folders: folders || [] });
   } catch (error) {
     console.error("Fetch folders failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql in Supabase before using folders.",
+      });
+    }
     return res.status(500).json({ message: "Folders load failed" });
   }
 };

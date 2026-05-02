@@ -5,17 +5,20 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
 let socket: Socket | null = null;
 
 export const connectSocket = (token: string) => {
-  if (socket?.connected) {
+  if (!socket) {
+    socket = io(SOCKET_URL, {
+      auth: {
+        token,
+      },
+      transports: ["websocket"],
+    });
     return socket;
   }
 
-  socket = io(SOCKET_URL, {
-    auth: {
-      token,
-    },
-    transports: ["websocket"],
-  });
-
+  socket.auth = { token };
+  if (!socket.connected) {
+    socket.connect();
+  }
   return socket;
 };
 

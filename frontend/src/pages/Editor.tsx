@@ -235,6 +235,21 @@ const EditorPage = () => {
 
       const handleConnect = () => setSocketState("connected");
       const handleDisconnect = () => setSocketState("offline");
+      const handleConnectError = async (err: { message?: string }) => {
+        const message = String(err?.message || "");
+        if (message.includes("Unauthorized")) {
+          try {
+            const freshToken = await getToken({ skipCache: true });
+            if (freshToken) {
+              socket = connectSocket(freshToken);
+              return;
+            }
+          } catch (refreshError) {
+            console.error("Socket token refresh failed", refreshError);
+          }
+        }
+        setSocketState("offline");
+      };
       const handleReceiveChanges = (nextContent: string) => {
         if (!editor || nextContent === editor.getHTML()) {
           return;
@@ -330,6 +345,7 @@ const EditorPage = () => {
       socket?.on("active-users", handleActiveUsers);
       socket?.on("cursor-move", handleCursorMove);
       socket?.on("doc-error", handleDocError);
+      socket?.on("connect_error", handleConnectError);
       editor.on("update", handleEditorUpdate);
       editor.on("selectionUpdate", handleSelectionUpdate);
       editor.on("transaction", handleEditorTyping);
@@ -349,6 +365,7 @@ const EditorPage = () => {
         socket.off("active-users");
         socket.off("cursor-move");
         socket.off("doc-error");
+        socket.off("connect_error");
       }
       editor.off("update");
       editor.off("selectionUpdate");
@@ -817,30 +834,29 @@ const EditorPage = () => {
               <span className="material-symbols-outlined text-sm text-primary">grid_view</span>
             </div>
             <div>
-              <div className="text-lg font-bold leading-none text-white">Main Lab</div>
-              <div className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-[#a3a3a3]">Pro Plan</div>
+              <div className="text-lg font-bold leading-none text-white">Arena</div>
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-4">
             {[
-              ["grid_view", "Workspace"],
-              ["description", "Drafts"],
-              ["folder_open", "Collections"],
-              ["groups", "Team"],
-              ["settings", "Settings"],
-            ].map(([icon, label], index) => (
+              { icon: "grid_view", label: "Workspace", to: "/dashboard" },
+              { icon: "description", label: "Drafts", to: "/drafts" },
+              { icon: "folder_open", label: "Collections", to: "/collections" },
+              { icon: "groups", label: "Team", to: "/teams" },
+              { icon: "settings", label: "Settings", to: "/settings" },
+            ].map((item) => (
               <button
-                key={label}
+                key={item.label}
                 type="button"
-                onClick={() => navigate(index === 0 ? "/dashboard" : `/${label.toLowerCase()}`)}
+                onClick={() => navigate(item.to)}
                 className={`flex w-full items-center gap-3 rounded px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest transition-all duration-150 ${
-                  index === 0
+                  item.to === "/dashboard"
                     ? "border-r-2 border-primary-container bg-[#1c1b1b] text-[#10b981]"
                     : "text-[#a3a3a3] hover:translate-x-1 hover:bg-[#1c1b1b] hover:text-white"
                 }`}
               >
-                <span className="material-symbols-outlined">{icon}</span>
-                <span>{label}</span>
+                <span className="material-symbols-outlined">{item.icon}</span>
+                <span>{item.label}</span>
               </button>
             ))}
           </nav>
@@ -981,6 +997,22 @@ const EditorPage = () => {
               <span className="text-[10px] font-bold text-primary">{comments.length} Active</span>
             </div>
 
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded border border-white/5 bg-surface-container-high p-3">
+                <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
+                <input
+                  className="flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
+                  placeholder="Type a comment..."
+                  value={commentBody}
+                  onChange={(event) => setCommentBody(event.target.value)}
+                  type="text"
+                />
+              </div>
+              <button type="button" onClick={() => addComment().catch(console.error)} className="emerald-primary-button w-full">
+                Add Comment
+              </button>
+            </div>
+
             {comments.length ? (
               comments.map((comment) => (
                 <div key={comment.id} className="space-y-3 rounded-lg border-l-2 border-primary bg-surface-container p-4 shadow-sm">
@@ -1002,21 +1034,6 @@ const EditorPage = () => {
               </div>
             )}
 
-            <div className="mt-auto space-y-3">
-              <div className="flex items-center gap-3 rounded border border-white/5 bg-surface-container-high p-3">
-                <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
-                <input
-                  className="flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
-                  placeholder="Type a comment..."
-                  value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
-                  type="text"
-                />
-              </div>
-              <button type="button" onClick={() => addComment().catch(console.error)} className="emerald-primary-button w-full">
-                Add Comment
-              </button>
-            </div>
           </aside>
         ) : null}
 
