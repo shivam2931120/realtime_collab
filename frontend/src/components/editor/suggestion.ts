@@ -1,8 +1,13 @@
+import type { SuggestionOptions } from '@tiptap/suggestion';
 import { ReactRenderer } from '@tiptap/react';
 import tippy from 'tippy.js';
 import CommandList from './CommandList';
 
-export default {
+const suggestion: Omit<SuggestionOptions<any>, 'editor'> = {
+  char: '/',
+  command: ({ editor, range, props }: any) => {
+    props.command({ editor, range });
+  },
   items: ({ query }: { query: string }) => {
     return [
       {
@@ -125,3 +130,5 @@ export default {
     };
   },
 };
+
+export default suggestion;
