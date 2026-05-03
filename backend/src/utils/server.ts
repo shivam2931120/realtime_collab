@@ -19,6 +19,8 @@ export const createServer = () => {
 
   app.use(express.json({ limit: "2mb" }));
   app.use(metricsMiddleware);
+  // Kubernetes / PaaS style health endpoint
+  app.get("/healthz", (_req, res) => res.sendStatus(200));
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });

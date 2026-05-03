@@ -7,7 +7,19 @@ let loggedPubError = false;
 
 const getRedisUrl = () => process.env.REDIS_URL || "";
 
-export const isRedisEnabled = () => Boolean(getRedisUrl());
+export const isRedisEnabled = () => {
+  const url = getRedisUrl();
+  if (!url) return false;
+  // Avoid trying to connect to localhost Redis when running in production/PaaS
+  // where localhost:6379 is unavailable. Allow localhost for local dev only.
+  if (process.env.NODE_ENV === "production") {
+    const localhostPatterns = ["localhost", "127.0.0.1", "::1"];
+    for (const p of localhostPatterns) {
+      if (url.includes(p)) return false;
+    }
+  }
+  return true;
+};
 
 export const initRedis = async () => {
   if (!isRedisEnabled()) {
