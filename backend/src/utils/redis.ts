@@ -10,12 +10,14 @@ const getRedisUrl = () => process.env.REDIS_URL || "";
 export const isRedisEnabled = () => {
   const url = getRedisUrl();
   if (!url) return false;
-  // Avoid trying to connect to localhost Redis when running in production/PaaS
-  // where localhost:6379 is unavailable. Allow localhost for local dev only.
-  if (process.env.NODE_ENV === "production") {
-    const localhostPatterns = ["localhost", "127.0.0.1", "::1"];
-    for (const p of localhostPatterns) {
-      if (url.includes(p)) return false;
+  // If the URL points to localhost, don't attempt to connect in any environment
+  // when running in a container/PAAS (Render). This prevents repeated
+  // ECONNREFUSED logs when someone leaves REDIS_URL as the default dev value.
+  const localhostPatterns = ["localhost", "127.0.0.1", "::1"];
+  for (const p of localhostPatterns) {
+    if (url.includes(p)) {
+      console.warn(`Skipping Redis because REDIS_URL points to localhost (${p})`);
+      return false;
     }
   }
   return true;
