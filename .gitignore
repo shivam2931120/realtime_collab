@@ -13,3 +13,4 @@ frontend/*.tsbuildinfo
 /frontend/.env
 .env.local
 .env.*.local
+backend/.env
