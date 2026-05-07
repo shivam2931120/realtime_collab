@@ -11,7 +11,24 @@ declare global {
 // AuthRequest is used by all controllers — export it so they can import it
 export type AuthRequest = Request & StrictAuthProp;
 
-export const protect = ClerkExpressRequireAuth({});
+const authDisabled = process.env.DISABLE_AUTH === 'true';
+const demoUserId = process.env.DEMO_USER_ID || 'demo-user';
+
+const demoAuth: StrictAuthProp['auth'] = {
+  sessionId: 'demo-session',
+  userId: demoUserId,
+  actor: null,
+  getToken: async () => null,
+  debug: () => {},
+  claims: {},
+};
+
+export const protect = authDisabled
+  ? async (req: Request, _res: Response, next: NextFunction) => {
+      (req as AuthRequest).auth = demoAuth;
+      next();
+    }
+  : ClerkExpressRequireAuth({});
 
 export const handleAuthError = (err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.message === 'Unauthenticated') {
