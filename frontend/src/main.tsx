@@ -37,8 +37,29 @@ const AppTree = (
   </React.StrictMode>
 );
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  clerkPublishableKey ? (
+const root = ReactDOM.createRoot(document.getElementById("root")!);
+
+// If the publishable key is missing in the environment, avoid mounting the
+// auth-aware app (which calls `useAuth`) because that will throw when there
+// is no `ClerkProvider`. Instead render a friendly configuration message so
+// the site doesn't crash in production while envs are fixed.
+if (!clerkPublishableKey) {
+  root.render(
+    <React.StrictMode>
+      <ThemeProvider theme={muiTheme}>
+        <CssBaseline />
+        <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400 p-6">
+          <div className="max-w-xl text-center">
+            <h1 className="text-2xl font-bold text-white mb-2">Configuration error</h1>
+            <p className="mb-4">VITE_CLERK_PUBLISHABLE_KEY is not set in the environment.</p>
+            <p className="text-sm">Set <strong>VITE_CLERK_PUBLISHABLE_KEY</strong> in your deployment (Vercel/Netlify/etc.) and redeploy to enable authentication.</p>
+          </div>
+        </div>
+      </ThemeProvider>
+    </React.StrictMode>
+  );
+} else {
+  root.render(
     <ClerkProvider 
       publishableKey={clerkPublishableKey}
       localization={{
@@ -88,7 +109,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     >
       {AppTree}
     </ClerkProvider>
-  ) : (
-    AppTree
-  ),
-);
+  );
+}
