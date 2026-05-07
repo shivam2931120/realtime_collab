@@ -34,6 +34,8 @@ export const createServer = () => {
 
   app.use(express.json({ limit: "2mb" }));
   app.use(metricsMiddleware);
+  // Render default health check hits "/"; return 200 to avoid deploy failures.
+  app.get("/", (_req, res) => res.status(200).send("ok"));
   // Kubernetes / PaaS style health endpoint
   app.get("/healthz", (_req, res) => res.sendStatus(200));
 
