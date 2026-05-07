@@ -77,6 +77,7 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_publishable_key_here
 
 ```bash
 cd backend
+# prefer `npm ci` if you have a package-lock.json
 npm install
 npm run dev
 ```
@@ -87,9 +88,40 @@ Backend runs on `http://localhost:5000`
 
 ```bash
 cd frontend
+# prefer `npm install` to create a package-lock.json if missing
 npm install
 npm run dev
 ```
+
+### Troubleshooting local builds
+
+- If you removed `package-lock.json` and ran `npm ci`, you'll get an error. Restore the lockfile from Git or run `npm install` to recreate it.
+- Ensure you use the Node version in `.nvmrc` (Node 22). If you have `nvm` installed:
+
+```bash
+nvm install
+nvm use
+```
+
+- If `npm run build` fails with memory errors, run:
+
+```bash
+export NODE_OPTIONS="--max_old_space_size=4096"
+npm run build
+```
+
+### Vercel / Deployment checklist
+
+- Project Root: `frontend`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Environment Variables (Production & Preview):
+	- `VITE_CLERK_PUBLISHABLE_KEY` = your `pk_...` from Clerk
+	- `VITE_API_URL` = `https://realtime-collab-backend-oiou.onrender.com/api`
+	- `VITE_SOCKET_URL` = `https://realtime-collab-backend-oiou.onrender.com`
+- If deployment fails due to memory, set `NODE_OPTIONS=--max_old_space_size=4096` in Vercel envs for the build.
+
+After updating envs, redeploy and check build logs in Vercel. If it fails, copy the ERROR block and share it.
 
 Frontend runs on `http://localhost:5173`
 
