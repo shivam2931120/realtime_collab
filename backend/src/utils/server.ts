@@ -9,10 +9,25 @@ import { metricsHandler, metricsMiddleware } from "./monitoring";
 export const createServer = () => {
   const app = express();
   const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+  const clientUrls = (process.env.CLIENT_URLS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const allowedOrigins = Array.from(new Set([clientUrl, ...clientUrls]));
 
   app.use(
     cors({
-      origin: clientUrl,
+      origin: (origin, callback) => {
+        if (!origin) {
+          return callback(null, true);
+        }
+
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
       credentials: true,
     }),
   );
@@ -34,7 +49,7 @@ export const createServer = () => {
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: clientUrl,
+      origin: allowedOrigins,
       credentials: true,
     },
   });
