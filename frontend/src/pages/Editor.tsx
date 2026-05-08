@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { connectSocket, disconnectSocket } from "../services/socket";
-import { useAuth, useUser } from "@clerk/clerk-react";
+import { isAuthDisabled, useAuthSafe, useUserSafe } from "../utils/auth";
 import { DocItem, useDocStore } from "../store/docStore";
 import { DocComment } from "../types";
 
@@ -75,8 +75,8 @@ const menuButtonClass =
 const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getToken } = useAuth();
-  const { user } = useUser();
+  const { getToken } = useAuthSafe();
+  const { user } = useUserSafe();
   const activeDoc = useDocStore((state) => state.activeDoc);
   const setActiveDoc = useDocStore((state) => state.setActiveDoc);
   const upsertDoc = useDocStore((state) => state.upsertDoc);
@@ -215,6 +215,9 @@ const EditorPage = () => {
   }, [editor, activeDoc?.id, activeDoc?.content, activeDoc?.role]);
 
   useEffect(() => {
+    if (isAuthDisabled) {
+      return;
+    }
     const currentDoc = docRef.current;
 
     if (!id || !editor || !currentDoc) {

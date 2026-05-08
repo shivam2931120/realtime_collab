@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import App from "./App";
 import "./index.css";
+import { isAuthDisabled } from "./utils/auth";
 
 import { dark } from "@clerk/themes";
 
@@ -39,11 +40,16 @@ const AppTree = (
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
-// If the publishable key is missing in the environment, avoid mounting the
-// auth-aware app (which calls `useAuth`) because that will throw when there
-// is no `ClerkProvider`. Instead render a friendly configuration message so
-// the site doesn't crash in production while envs are fixed.
-if (!clerkPublishableKey) {
+// If auth is disabled for demo, mount the app without ClerkProvider.
+// Otherwise, if the publishable key is missing, show a configuration message
+// to avoid runtime errors from hooks that expect a `ClerkProvider`.
+if (isAuthDisabled) {
+  root.render(
+    <React.StrictMode>
+      {AppTree}
+    </React.StrictMode>
+  );
+} else if (!clerkPublishableKey) {
   root.render(
     <React.StrictMode>
       <ThemeProvider theme={muiTheme}>

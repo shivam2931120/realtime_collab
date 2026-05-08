@@ -53,6 +53,8 @@ NODE_ENV=development
 CLERK_SECRET_KEY=sk_test_your_clerk_secret_here
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your_supabase_service_role_key
+DISABLE_AUTH=false
+DEMO_USER_ID=demo-user
 
 # Optional: Google SMTP (Gmail) for password recovery + share emails
 # Use a Gmail "App Password" (recommended) instead of your normal account password.
@@ -69,6 +71,7 @@ Create `frontend/.env` with:
 VITE_API_URL=http://localhost:5000/api
 VITE_SOCKET_URL=http://localhost:5000
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_publishable_key_here
+VITE_DISABLE_AUTH=false
 ```
 
 ## Local run
@@ -189,6 +192,21 @@ Import `postman/Realtime-Collab.postman_collection.json`
 
 - Password recovery is handled by Clerk's hosted auth flow.
 - SMTP in this backend is currently used for document share emails.
+
+## Demo mode (auth disabled)
+
+To run without any Clerk authentication (demo-only):
+
+```env
+# frontend/.env
+VITE_DISABLE_AUTH=true
+
+# backend/.env
+DISABLE_AUTH=true
+DEMO_USER_ID=demo-user
+```
+
+When demo mode is enabled, Clerk sign-in routes are bypassed and the backend uses a fixed demo user id.
 
 ## Supabase setup
 

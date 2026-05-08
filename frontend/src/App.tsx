@@ -1,6 +1,7 @@
 import { ReactNode, Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { SignIn, SignUp, useAuth } from "@clerk/clerk-react";
+import { SignIn, SignUp } from "@clerk/clerk-react";
+import { isAuthDisabled, useAuthSafe } from "./utils/auth";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const DraftsPage = lazy(() => import("./pages/Drafts"));
@@ -13,16 +14,17 @@ const LibraryPage = lazy(() => import("./pages/Library"));
 const AnalyticsPage = lazy(() => import("./pages/Analytics"));
 
 const ClerkProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn } = useAuthSafe();
   if (!isLoaded) return <div>Loading...</div>;
   if (!isSignedIn) return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
 
 const App = () => {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn } = useAuthSafe();
+  const disableAuth = isAuthDisabled;
 
-  if (!isLoaded) {
+  if (!disableAuth && !isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">
         Loading Auth...
@@ -39,98 +41,144 @@ const App = () => {
       }
     >
       <Routes>
-        <Route path="/" element={<Navigate to={isSignedIn ? "/dashboard" : "/login"} replace />} />
-        
-        <Route path="/login/*" element={
-          <div className="flex min-h-screen items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black px-4">
-            <SignIn routing="path" path="/login" signUpUrl="/register" fallbackRedirectUrl="/dashboard" />
-          </div>
-        } />
-        
-        <Route path="/register/*" element={
-          <div className="flex min-h-screen items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black px-4">
-            <SignUp routing="path" path="/register" signInUrl="/login" fallbackRedirectUrl="/dashboard" />
-          </div>
-        } />
+        <Route
+          path="/"
+          element={<Navigate to={disableAuth || isSignedIn ? "/dashboard" : "/login"} replace />}
+        />
         
         <Route
-          path="/dashboard"
+          path="/login/*"
           element={
-            <ClerkProtectedRoute>
-              <Dashboard />
-            </ClerkProtectedRoute>
+            disableAuth ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <div className="flex min-h-screen items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black px-4">
+                <SignIn routing="path" path="/login" signUpUrl="/register" fallbackRedirectUrl="/dashboard" />
+              </div>
+            )
           }
         />
+        
+        <Route
+          path="/register/*"
+          element={
+            disableAuth ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <div className="flex min-h-screen items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black px-4">
+                <SignUp routing="path" path="/register" signInUrl="/login" fallbackRedirectUrl="/dashboard" />
+              </div>
+            )
+          }
+        />
+        
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route
           path="/drafts"
           element={
-            <ClerkProtectedRoute>
+            disableAuth ? (
               <DraftsPage />
-            </ClerkProtectedRoute>
+            ) : (
+              <ClerkProtectedRoute>
+                <DraftsPage />
+              </ClerkProtectedRoute>
+            )
           }
         />
         <Route
           path="/collections"
           element={
-            <ClerkProtectedRoute>
+            disableAuth ? (
               <CollectionsPage />
-            </ClerkProtectedRoute>
+            ) : (
+              <ClerkProtectedRoute>
+                <CollectionsPage />
+              </ClerkProtectedRoute>
+            )
           }
         />
         <Route
           path="/teams"
           element={
-            <ClerkProtectedRoute>
+            disableAuth ? (
               <TeamsPage />
-            </ClerkProtectedRoute>
+            ) : (
+              <ClerkProtectedRoute>
+                <TeamsPage />
+              </ClerkProtectedRoute>
+            )
           }
         />
         <Route
           path="/settings"
           element={
-            <ClerkProtectedRoute>
+            disableAuth ? (
               <SettingsPage />
-            </ClerkProtectedRoute>
+            ) : (
+              <ClerkProtectedRoute>
+                <SettingsPage />
+              </ClerkProtectedRoute>
+            )
           }
         />
           <Route
             path="/discover"
             element={
-              <ClerkProtectedRoute>
+              disableAuth ? (
                 <DiscoverPage />
-              </ClerkProtectedRoute>
+              ) : (
+                <ClerkProtectedRoute>
+                  <DiscoverPage />
+                </ClerkProtectedRoute>
+              )
             }
           />
           <Route
             path="/library"
             element={
-              <ClerkProtectedRoute>
+              disableAuth ? (
                 <LibraryPage />
-              </ClerkProtectedRoute>
+              ) : (
+                <ClerkProtectedRoute>
+                  <LibraryPage />
+                </ClerkProtectedRoute>
+              )
             }
           />
           <Route
             path="/analytics"
             element={
-              <ClerkProtectedRoute>
+              disableAuth ? (
                 <AnalyticsPage />
-              </ClerkProtectedRoute>
+              ) : (
+                <ClerkProtectedRoute>
+                  <AnalyticsPage />
+                </ClerkProtectedRoute>
+              )
             }
           />
         <Route
           path="/editor/:id"
           element={
-            <ClerkProtectedRoute>
+            disableAuth ? (
               <EditorPage />
-            </ClerkProtectedRoute>
+            ) : (
+              <ClerkProtectedRoute>
+                <EditorPage />
+              </ClerkProtectedRoute>
+            )
           }
         />
         <Route
           path="/docs/:id"
           element={
-            <ClerkProtectedRoute>
+            disableAuth ? (
               <EditorPage />
-            </ClerkProtectedRoute>
+            ) : (
+              <ClerkProtectedRoute>
+                <EditorPage />
+              </ClerkProtectedRoute>
+            )
           }
         />
       </Routes>

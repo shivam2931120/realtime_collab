@@ -4,6 +4,8 @@ import { supabase } from "../config/supabase";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 import { isMissingTableError } from "../utils/dbErrors";
 
+const authDisabled = process.env.DISABLE_AUTH === "true";
+
 const shapeNotification = (notification: any, actorEmail: string, documentTitle: string) => ({
   id: notification.id,
   type: notification.type,
@@ -47,7 +49,7 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
     const uniqueSenderIds = [...new Set(notifications.map(n => n.sender_id).filter(Boolean))];
     const userMap = new Map();
 
-    if (uniqueSenderIds.length > 0) {
+    if (!authDisabled && uniqueSenderIds.length > 0) {
       try {
         const usersResp = await clerkClient.users.getUserList({ userId: uniqueSenderIds });
         const userList: any[] = Array.isArray(usersResp) ? usersResp : (usersResp as any).data || [];
@@ -97,7 +99,7 @@ export const markNotificationRead = async (req: AuthRequest, res: Response) => {
     }
 
     let actorEmail = "";
-    if (notification.sender_id) {
+    if (!authDisabled && notification.sender_id) {
       try {
         const u = await clerkClient.users.getUser(notification.sender_id);
         actorEmail = u.emailAddresses[0]?.emailAddress || "";

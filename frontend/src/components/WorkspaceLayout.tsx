@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import NotificationMenu from "./NotificationMenu";
 import { disconnectSocket } from "../services/socket";
-import { useClerk, useUser } from "@clerk/clerk-react";
+import { isAuthDisabled, useClerkSafe, useUserSafe } from "../utils/auth";
 import { useUiStore } from "../store/uiStore";
 
 type WorkspaceLayoutProps = {
@@ -30,8 +30,8 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   const searchTerm = useUiStore((state) => state.searchTerm);
   const setSearchTerm = useUiStore((state) => state.setSearchTerm);
   
-  const { signOut } = useClerk();
-  const { user } = useUser();
+  const { signOut } = useClerkSafe();
+  const { user } = useUserSafe();
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
 
   const initials = useMemo(() => email.slice(0, 1).toUpperCase() || "U", [email]);
@@ -41,6 +41,9 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   }, [searchParams]);
 
   const handleLogout = async () => {
+    if (isAuthDisabled) {
+      return;
+    }
     disconnectSocket();
     await signOut();
     navigate("/login", { replace: true });
@@ -102,20 +105,22 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
           <button
             type="button"
             className="flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-white/10 bg-surface-container-high text-xs font-bold uppercase text-white cursor-default"
-            title={email}
+            title={email || "Demo User"}
           >
             {initials}
           </button>
           
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex h-8 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-[#a3a3a3] transition-colors duration-200 hover:bg-[#201f1f] hover:text-white"
-            title="Sign out"
-          >
-            <span className="material-symbols-outlined text-[20px]">logout</span>
-            <span>Sign Out</span>
-          </button>
+          {!isAuthDisabled && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex h-8 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-[#a3a3a3] transition-colors duration-200 hover:bg-[#201f1f] hover:text-white"
+              title="Sign out"
+            >
+              <span className="material-symbols-outlined text-[20px]">logout</span>
+              <span>Sign Out</span>
+            </button>
+          )}
         </div>
       </header>
 

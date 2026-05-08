@@ -1,4 +1,5 @@
 import { useSignIn, useSignUp } from "@clerk/clerk-react";
+import { isAuthDisabled } from "../utils/auth";
 
 type SocialAuthButtonsProps = {
   mode: "login" | "register";
@@ -68,6 +69,9 @@ const EnabledButtons = ({ mode }: SocialAuthButtonsProps) => {
 };
 
 const SocialAuthButtons = ({ mode }: SocialAuthButtonsProps) => {
+  if (isAuthDisabled) {
+    return null;
+  }
   if (!clerkEnabled) {
     return <DisabledButtons />;
   }

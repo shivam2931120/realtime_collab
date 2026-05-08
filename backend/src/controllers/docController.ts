@@ -24,7 +24,12 @@ type ShareTarget = {
 const normalizeRole = (role: unknown): "editor" | "viewer" =>
   role === "viewer" ? "viewer" : "editor";
 
+const authDisabled = process.env.DISABLE_AUTH === "true";
+
 const getRoleForUser = (document: any, userId: string) => {
+  if (authDisabled) {
+    return "owner" as const;
+  }
   if (document.owner_id === userId) {
     return "owner" as const;
   }
@@ -54,6 +59,18 @@ const shapeDocument = (document: any, userId: string) => {
 };
 
 const enrichWithUserEmails = async (documents: any[]) => {
+  if (authDisabled) {
+    return documents.map((doc) => {
+      doc.owner_email = doc.owner_email || "demo@local";
+      if (doc.document_collaborators) {
+        doc.document_collaborators = doc.document_collaborators.map((c: any) => ({
+          ...c,
+          user_email: c.user_email || "demo@local",
+        }));
+      }
+      return doc;
+    });
+  }
   // Collect all unique user IDs
   const userIds = new Set<string>();
   documents.forEach((doc) => {
