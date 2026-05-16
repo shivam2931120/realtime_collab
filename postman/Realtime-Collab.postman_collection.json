@@ -7,34 +7,30 @@
   },
   "item": [
     {
-      "name": "Register",
+      "name": "Create Session",
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"owner@example.com\",\n  \"password\": \"secret123\"\n}"
+          "raw": "{\n  \"email\": \"owner@example.com\"\n}"
         },
         "url": {
-          "raw": "{{baseUrl}}/api/auth/register",
+          "raw": "{{baseUrl}}/api/auth/session",
           "host": ["{{baseUrl}}"],
-          "path": ["api", "auth", "register"]
+          "path": ["api", "auth", "session"]
         }
       }
     },
     {
-      "name": "Login",
+      "name": "Get Current Session",
       "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"owner@example.com\",\n  \"password\": \"secret123\"\n}"
-        },
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
         "url": {
-          "raw": "{{baseUrl}}/api/auth/login",
+          "raw": "{{baseUrl}}/api/auth/me",
           "host": ["{{baseUrl}}"],
-          "path": ["api", "auth", "login"]
+          "path": ["api", "auth", "me"]
         }
       }
     },

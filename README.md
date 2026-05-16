@@ -89,6 +89,9 @@ Frontend runs on `http://localhost:5173`.
 
 - `POST /api/auth/session`
 - `GET /api/auth/me`
+- `POST /api/docs/folders`
+- `GET /api/docs/folders`
+- `DELETE /api/docs/folders/:folderId`
 - `POST /api/docs`
 - `GET /api/docs`
 - `GET /api/docs/:id`

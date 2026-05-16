@@ -15,7 +15,7 @@ Verification
 
 ```bash
 cd backend
-node -r ts-node/register scripts/verify-smtp.ts
+npm run smtp:verify
 ```
 
 Provider notes

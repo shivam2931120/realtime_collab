@@ -3,6 +3,7 @@
 This project exposes basic monitoring and health endpoints and ships a Prometheus metric endpoint.
 
 Endpoints
+- `/healthz` — platform health check for Azure App Service.
 - `/api/health` — basic readiness/health check (HTTP 200 OK expected).
 - `/api/metrics` — Prometheus metrics (if `prom-client` is enabled).
 
