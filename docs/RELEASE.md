@@ -33,4 +33,4 @@ git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-CI can automate steps 4–6 (build images, push to registry, create GitHub release).
+For this repo, releases are manual: build locally, push the branch, merge, then create the tag.

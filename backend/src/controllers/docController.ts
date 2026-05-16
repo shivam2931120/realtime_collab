@@ -1,14 +1,12 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
-import { clerkClient } from "@clerk/clerk-sdk-node";
 import { trackDocumentEvent } from "../utils/analytics";
 import { isMissingTableError } from "../utils/dbErrors";
 import { invalidateCachePrefix, publishEvent } from "../utils/redis";
+import { emailFromUserId, isValidEmail, normalizeEmail, userIdFromEmail } from "../utils/userIdentity";
 
-// For notifications, we insert into Supabase directly instead of Mongoose
-// We'll skip sending emails manually if Clerk/Supabase handles it, but let's just log them for now
-// to simplify the migration without nodemailer.
+// For notifications, we insert into Supabase directly instead of Mongoose.
 
 type ShareInput = {
   email: string;
@@ -54,41 +52,16 @@ const shapeDocument = (document: any, userId: string) => {
 };
 
 const enrichWithUserEmails = async (documents: any[]) => {
-  // Collect all unique user IDs
-  const userIds = new Set<string>();
-  documents.forEach((doc) => {
-    userIds.add(doc.owner_id);
-    doc.document_collaborators?.forEach((c: any) => userIds.add(c.user_id));
+  return documents.map((doc) => {
+    doc.owner_email = emailFromUserId(doc.owner_id);
+    if (doc.document_collaborators) {
+      doc.document_collaborators = doc.document_collaborators.map((c: any) => ({
+        ...c,
+        user_email: emailFromUserId(c.user_id),
+      }));
+    }
+    return doc;
   });
-
-  if (userIds.size === 0) return documents;
-
-  try {
-    const users = await clerkClient.users.getUserList({
-      userId: Array.from(userIds),
-    });
-    
-    const userMap = new Map();
-    const userList: any[] = Array.isArray(users) ? users : (users as any).data || [];
-    userList.forEach((u: any) => {
-      const email = u.emailAddresses[0]?.emailAddress || "unknown@example.com";
-      userMap.set(u.id, email);
-    });
-
-    return documents.map((doc) => {
-      doc.owner_email = userMap.get(doc.owner_id);
-      if (doc.document_collaborators) {
-        doc.document_collaborators = doc.document_collaborators.map((c: any) => ({
-          ...c,
-          user_email: userMap.get(c.user_id),
-        }));
-      }
-      return doc;
-    });
-  } catch (err) {
-    console.error("Clerk fetch error", err);
-    return documents;
-  }
 };
 
 const parseShareTargets = async (input: unknown, ownerId: string) => {
@@ -101,45 +74,24 @@ const parseShareTargets = async (input: unknown, ownerId: string) => {
     .map((item) => item as Partial<ShareInput>)
     .filter((item) => item.email)
     .map((item) => ({
-      email: String(item.email).trim().toLowerCase(),
+      email: normalizeEmail(item.email),
       role: normalizeRole(item.role),
     }))
-    .filter((item) => Boolean(item.email));
+    .filter((item) => isValidEmail(item.email));
 
-  const uniqueEmails = [...new Set(cleanedItems.map((item) => item.email))];
-  if (uniqueEmails.length === 0) return [] as ShareTarget[];
-
-  const usersResponse = await clerkClient.users.getUserList({
-    emailAddress: uniqueEmails,
-  });
-
-  const usersByEmail = new Map<string, any>();
-  const rawUsers: any[] = Array.isArray(usersResponse) ? usersResponse : (usersResponse as any).data || [];
-  rawUsers.forEach((u: any) => {
-    const email = u.emailAddresses[0]?.emailAddress;
-    if (email) usersByEmail.set(email.toLowerCase(), u);
-  });
-
-  const targets: ShareTarget[] = [];
-  cleanedItems.forEach((item) => {
-    const matchedUser = usersByEmail.get(item.email);
-    if (matchedUser && matchedUser.id !== ownerId) {
-      if (!targets.some((existing) => existing.userId === matchedUser.id)) {
-        targets.push({
-          email: matchedUser.emailAddresses[0]?.emailAddress || item.email,
-          role: item.role,
-          userId: matchedUser.id,
-        });
+  return [...new Map(cleanedItems.map((item) => [item.email, item])).values()]
+    .map((item) => {
+      const userId = userIdFromEmail(item.email);
+      if (userId === ownerId) {
+        return null;
       }
-      return;
-    }
-
-    if (!targets.some((existing) => existing.email === item.email)) {
-      targets.push({ email: item.email, role: item.role });
-    }
-  });
-
-  return targets;
+      return {
+        email: item.email,
+        role: item.role,
+        userId,
+      } as ShareTarget;
+    })
+    .filter(Boolean) as ShareTarget[];
 };
 
 import { sendDocumentSharedEmail } from "../utils/mailer";
@@ -150,16 +102,14 @@ const createShareNotifications = async ({
   actorId,
   actorEmail,
   addedCollaborators,
-  shareTargets,
 }: {
   documentId: string;
   documentTitle: string;
   actorId: string;
   actorEmail: string;
   addedCollaborators: Array<{ user: string; role: "editor" | "viewer"; email?: string }>;
-  shareTargets: ShareTarget[];
 }) => {
-  if (!addedCollaborators.length && !shareTargets.length) return;
+  if (!addedCollaborators.length) return;
 
   const notifications = addedCollaborators.flatMap((item) => [
     {
@@ -185,7 +135,11 @@ const createShareNotifications = async ({
   const actorEmailKey = actorEmail.toLowerCase();
 
   const allTargets: Array<{ email: string; role: "editor" | "viewer" }> = [
-    ...shareTargets.map((target) => ({ email: target.email, role: target.role })),
+    ...addedCollaborators
+      .filter((target): target is { user: string; role: "editor" | "viewer"; email: string } =>
+        Boolean(target.email),
+      )
+      .map((target) => ({ email: target.email, role: target.role })),
   ];
 
   for (const target of allTargets) {
@@ -247,8 +201,7 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
 
     const [enrichedDoc] = await enrichWithUserEmails([fullDoc]);
 
-    const actor = await clerkClient.users.getUser(userId);
-    const actorEmail = actor.emailAddresses[0]?.emailAddress || "unknown@example.com";
+    const actorEmail = auth.email;
 
     await createShareNotifications({
       documentId: docData.id,
@@ -260,7 +213,6 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
         role: item.role,
         email: item.email,
       })),
-      shareTargets,
     });
 
     await trackDocumentEvent({
@@ -453,8 +405,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
       const existingCollabIds = new Set(doc.document_collaborators?.map((c: any) => c.user_id));
       const addedCollaborators = parsedCollaborators.filter((c) => !existingCollabIds.has(c.userId));
 
-      const actor = await clerkClient.users.getUser(userId);
-      const actorEmail = actor.emailAddresses[0]?.emailAddress || "unknown@example.com";
+      const actorEmail = auth.email;
 
       await createShareNotifications({
         documentId,
@@ -466,7 +417,6 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
           role: item.role,
           email: item.email,
         })),
-        shareTargets: parsedShareTargets,
       });
 
       await trackDocumentEvent({

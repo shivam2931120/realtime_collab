@@ -22,9 +22,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { connectSocket, disconnectSocket } from "../services/socket";
-import { useAuth, useUser } from "@clerk/clerk-react";
 import { DocItem, useDocStore } from "../store/docStore";
 import { DocComment } from "../types";
+import { getAuthToken } from "../services/auth";
+import { useAuthStore } from "../store/authStore";
 
 type ShareRole = "editor" | "viewer";
 
@@ -75,8 +76,7 @@ const menuButtonClass =
 const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getToken } = useAuth();
-  const { user } = useUser();
+  const userEmail = useAuthStore((state) => state.user?.email);
   const activeDoc = useDocStore((state) => state.activeDoc);
   const setActiveDoc = useDocStore((state) => state.setActiveDoc);
   const upsertDoc = useDocStore((state) => state.upsertDoc);
@@ -109,7 +109,6 @@ const EditorPage = () => {
   const docRef = useRef<DocItem | null>(null);
   const cursorEmitRef = useRef<number>(0);
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const userEmail = user?.primaryEmailAddress?.emailAddress;
 
   const editor = useEditor({
     extensions: [
@@ -225,7 +224,7 @@ const EditorPage = () => {
     let isActive = true;
 
     const initializeSocket = async () => {
-      const token = await getToken();
+      const token = getAuthToken();
       if (!isActive || !token) {
         return;
       }
@@ -238,15 +237,7 @@ const EditorPage = () => {
       const handleConnectError = async (err: { message?: string }) => {
         const message = String(err?.message || "");
         if (message.includes("Unauthorized")) {
-          try {
-            const freshToken = await getToken({ skipCache: true });
-            if (freshToken) {
-              socket = connectSocket(freshToken);
-              return;
-            }
-          } catch (refreshError) {
-            console.error("Socket token refresh failed", refreshError);
-          }
+          disconnectSocket();
         }
         setSocketState("offline");
       };
@@ -373,7 +364,7 @@ const EditorPage = () => {
       window.clearTimeout(saveTimerRef.current);
       setRemoteCursors([]);
     };
-  }, [editor, id, activeDoc?.id, activeDoc?.role, getToken, userEmail]);
+  }, [editor, id, activeDoc?.id, activeDoc?.role, userEmail]);
 
   useEffect(() => {
     if (!editor || !editorSurfaceRef.current || remoteCursors.length === 0) {

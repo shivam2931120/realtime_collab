@@ -11,7 +11,7 @@ export const isRedisEnabled = () => {
   const url = getRedisUrl();
   if (!url) return false;
   // If the URL points to localhost, don't attempt to connect in any environment
-  // when running in a container/PAAS (Render). This prevents repeated
+  // when running in a container/PaaS. This prevents repeated
   // ECONNREFUSED logs when someone leaves REDIS_URL as the default dev value.
   const localhostPatterns = ["localhost", "127.0.0.1", "::1"];
   for (const p of localhostPatterns) {

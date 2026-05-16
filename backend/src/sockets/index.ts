@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
-import { clerkClient } from "@clerk/clerk-sdk-node";
 import { supabase } from "../config/supabase";
+import { verifyAuthToken } from "../utils/authToken";
 
 type ActiveSocketUser = {
   id: string;
@@ -83,9 +83,8 @@ export const setupSockets = (io: Server) => {
         return next(new Error("Unauthorized: Token missing"));
       }
 
-      const decoded = await clerkClient.verifyToken(token);
-      
-      socket.data.user = { id: decoded.sub };
+      const verifiedUser = verifyAuthToken(token);
+      socket.data.user = { id: verifiedUser.id };
       return next();
     } catch (error) {
       console.error("Socket auth error", error);

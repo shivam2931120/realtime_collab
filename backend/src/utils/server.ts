@@ -4,6 +4,7 @@ import http from "http";
 import { Server } from "socket.io";
 import docRoutes from "../routes/docRoutes";
 import notificationRoutes from "../routes/notificationRoutes";
+import authRoutes from "../routes/authRoutes";
 import { metricsHandler, metricsMiddleware } from "./monitoring";
 
 export const createServer = () => {
@@ -34,7 +35,7 @@ export const createServer = () => {
 
   app.use(express.json({ limit: "2mb" }));
   app.use(metricsMiddleware);
-  // Render default health check hits "/"; return 200 to avoid deploy failures.
+  // Cloud health checks may hit "/"; return 200 to avoid deploy failures.
   app.get("/", (_req, res) => res.status(200).send("ok"));
   // Kubernetes / PaaS style health endpoint
   app.get("/healthz", (_req, res) => res.sendStatus(200));
@@ -45,6 +46,7 @@ export const createServer = () => {
 
   app.get("/api/metrics", metricsHandler);
 
+  app.use("/api/auth", authRoutes);
   app.use("/api/docs", docRoutes);
   app.use("/api/notifications", notificationRoutes);
 

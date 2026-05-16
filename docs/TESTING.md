@@ -1,6 +1,6 @@
 # Testing
 
-Test suites and how to run them locally and in CI.
+Test suites and how to run them locally.
 
 Unit tests
 - Frontend: Vitest + Testing Library. Run in `frontend`:
@@ -21,11 +21,5 @@ E2E
 npx playwright test
 ```
 
-Load tests
-- Artillery scripts are available under `tests/load` for basic load testing.
-
-CI
-- CI runs lint, typecheck, unit tests, and E2E on merge to `main`. Ensure CI has required secrets for E2E (test accounts) stored in secrets manager.
-
 Test data
-- Use a dedicated test Supabase project or ephemeral databases for CI to avoid polluting production data.
+- Use a dedicated test Supabase project or disposable database when running integration or E2E tests against real data.

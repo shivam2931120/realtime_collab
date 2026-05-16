@@ -1,8 +1,8 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
-import { clerkClient } from "@clerk/clerk-sdk-node";
 import { isMissingTableError } from "../utils/dbErrors";
+import { emailFromUserId } from "../utils/userIdentity";
 
 const shapeNotification = (notification: any, actorEmail: string, documentTitle: string) => ({
   id: notification.id,
@@ -44,23 +44,8 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
       return res.json({ notifications: [], unreadCount: 0 });
     }
 
-    const uniqueSenderIds = [...new Set(notifications.map(n => n.sender_id).filter(Boolean))];
-    const userMap = new Map();
-
-    if (uniqueSenderIds.length > 0) {
-      try {
-        const usersResp = await clerkClient.users.getUserList({ userId: uniqueSenderIds });
-        const userList: any[] = Array.isArray(usersResp) ? usersResp : (usersResp as any).data || [];
-        userList.forEach((u: any) => {
-          userMap.set(u.id, u.emailAddresses[0]?.emailAddress || "");
-        });
-      } catch (err) {
-        console.error("Clerk fetch users error in notifications", err);
-      }
-    }
-
     const shaped = notifications.map(n => 
-      shapeNotification(n, userMap.get(n.sender_id) || "unknown", n.documents?.title || "")
+      shapeNotification(n, emailFromUserId(n.sender_id), n.documents?.title || "")
     );
 
     return res.json({
@@ -96,13 +81,7 @@ export const markNotificationRead = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Notification nahi mili" });
     }
 
-    let actorEmail = "";
-    if (notification.sender_id) {
-      try {
-        const u = await clerkClient.users.getUser(notification.sender_id);
-        actorEmail = u.emailAddresses[0]?.emailAddress || "";
-      } catch (e) {}
-    }
+    const actorEmail = notification.sender_id ? emailFromUserId(notification.sender_id) : "";
 
     return res.json({ 
       notification: shapeNotification(notification, actorEmail, notification.documents?.title || "") 

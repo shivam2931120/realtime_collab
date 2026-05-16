@@ -1,12 +1,11 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useUser } from "@clerk/clerk-react";
 import WorkspaceLayout from "../components/WorkspaceLayout";
+import { useAuthStore } from "../store/authStore";
 
 const SettingsPage = () => {
   const [searchParams] = useSearchParams();
-  const { user } = useUser();
-  const email = user?.primaryEmailAddress?.emailAddress || "";
+  const email = useAuthStore((state) => state.user?.email || "");
   const query = searchParams.get("q")?.trim().toLowerCase() || "";
 
   const sections = useMemo(

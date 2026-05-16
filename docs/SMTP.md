@@ -1,7 +1,7 @@
 # SMTP & Mailer
 
 Purpose
-- SMTP is used for document share emails and optional notifications. Authentication (password recovery) is handled by Clerk's hosted flows.
+- SMTP is used for document share emails and optional notifications.
 
 Recommended provider
 - Gmail (App Password) for small-scale testing, or SendGrid / Mailgun / SES for production volume and deliverability.

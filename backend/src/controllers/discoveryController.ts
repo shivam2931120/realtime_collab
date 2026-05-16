@@ -1,5 +1,4 @@
 import { Response } from "express";
-import { clerkClient } from "@clerk/clerk-sdk-node";
 import TurndownService from "turndown";
 import { htmlToText } from "html-to-text";
 import PDFDocument from "pdfkit";
@@ -10,6 +9,7 @@ import { supabase } from "../config/supabase";
 import { trackDocumentEvent } from "../utils/analytics";
 import { isMissingTableError } from "../utils/dbErrors";
 import { getCache, setCache, invalidateCachePrefix, publishEvent } from "../utils/redis";
+import { emailFromUserId } from "../utils/userIdentity";
 
 const turndown = new TurndownService({ headingStyle: "atx", bulletListMarker: "-" });
 
@@ -38,12 +38,7 @@ const normalizeTags = (raw: unknown) => {
 };
 
 const getActorEmail = async (userId: string) => {
-  try {
-    const actor = await clerkClient.users.getUser(userId);
-    return actor.emailAddresses[0]?.emailAddress || "unknown@example.com";
-  } catch {
-    return "unknown@example.com";
-  }
+  return emailFromUserId(userId);
 };
 
 const stripHtml = (value: string) => htmlToText(value || "", { wordwrap: false });

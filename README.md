@@ -2,36 +2,14 @@
 
 Google Docs style collaborative editor built with:
 
-- `React + Vite + TypeScript`
-- `Tailwind CSS`
-- `Zustand`
-- `Tiptap`
-- `Node.js + Express + TypeScript`
-- `Supabase (Postgres)`
-- `Clerk Authentication`
-- `Socket.io`
-
-## Quickstart
-
-1. Copy env examples for backend and frontend and fill secret values locally (do NOT commit them):
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-```
-
-2. Start backend and frontend in development:
-
-```bash
-# backend
-cd backend && npm ci && npm run dev
-
-# frontend (new terminal)
-cd frontend && npm ci && npm run dev
-```
-
-3. Visit the frontend at `http://localhost:5173` and sign in via Clerk.
-
+- React + Vite + TypeScript
+- Tailwind CSS
+- Zustand
+- Tiptap
+- Node.js + Express + TypeScript
+- Supabase (Postgres)
+- Socket.io
+- Internal token-based email auth
 
 ## Project structure
 
@@ -40,22 +18,30 @@ backend/
 frontend/
 postman/
 docker-compose.yml
+supabase_schema.sql
 ```
 
-## Backend env
+## Environment setup
 
-Create `backend/.env` with:
+1. Copy env examples:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+2. Configure backend env (`backend/.env`):
 
 ```env
 PORT=5000
 CLIENT_URL=http://localhost:5173
 NODE_ENV=development
-CLERK_SECRET_KEY=sk_test_your_clerk_secret_here
+AUTH_TOKEN_SECRET=replace_with_a_long_random_secret
+AUTH_TOKEN_TTL_SECONDS=1209600
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your_supabase_service_role_key
 
-# Optional: Google SMTP (Gmail) for password recovery + share emails
-# Use a Gmail "App Password" (recommended) instead of your normal account password.
+# Optional SMTP for share notifications
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_USER=your@gmail.com
@@ -63,70 +49,46 @@ SMTP_PASS=your_app_password
 SMTP_FROM="Editorial <your@gmail.com>"
 ```
 
-Create `frontend/.env` with:
+3. Configure frontend env (`frontend/.env`):
 
 ```env
 VITE_API_URL=http://localhost:5000/api
 VITE_SOCKET_URL=http://localhost:5000
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_publishable_key_here
 ```
 
 ## Local run
 
-### 1) Start backend
+### 1) Backend
 
 ```bash
 cd backend
-# prefer `npm ci` if you have a package-lock.json
-npm install
+npm ci
 npm run dev
 ```
 
-Backend runs on `http://localhost:5000`
+Backend runs on `http://localhost:5000`.
 
-### 2) Start frontend
+### 2) Frontend
 
 ```bash
 cd frontend
-# prefer `npm install` to create a package-lock.json if missing
-npm install
+npm ci
 npm run dev
 ```
 
-### Troubleshooting local builds
+Frontend runs on `http://localhost:5173`.
 
-- If you removed `package-lock.json` and ran `npm ci`, you'll get an error. Restore the lockfile from Git or run `npm install` to recreate it.
-- Ensure you use the Node version in `.nvmrc` (Node 22). If you have `nvm` installed:
+## Auth flow
 
-```bash
-nvm install
-nvm use
-```
-
-- If `npm run build` fails with memory errors, run:
-
-```bash
-export NODE_OPTIONS="--max_old_space_size=4096"
-npm run build
-```
-
-### Vercel / Deployment checklist
-
-- Project Root: `frontend`
-- Build Command: `npm run build`
-- Output Directory: `dist`
-- Environment Variables (Production & Preview):
-	- `VITE_CLERK_PUBLISHABLE_KEY` = your `pk_...` from Clerk
-	- `VITE_API_URL` = `https://realtime-collab-backend-oiou.onrender.com/api`
-	- `VITE_SOCKET_URL` = `https://realtime-collab-backend-oiou.onrender.com`
-- If deployment fails due to memory, set `NODE_OPTIONS=--max_old_space_size=4096` in Vercel envs for the build.
-
-After updating envs, redeploy and check build logs in Vercel. If it fails, copy the ERROR block and share it.
-
-Frontend runs on `http://localhost:5173`
+- Use `/login` or `/register`.
+- Enter an email to create a signed session token.
+- Token is stored client-side and sent as `Authorization: Bearer <token>`.
+- Backend verifies token signature and derives a stable user ID from email.
 
 ## API endpoints
 
+- `POST /api/auth/session`
+- `GET /api/auth/me`
 - `POST /api/docs`
 - `GET /api/docs`
 - `GET /api/docs/:id`
@@ -150,75 +112,54 @@ Frontend runs on `http://localhost:5173`
 - `PUT /api/notifications/read-all`
 - `PUT /api/notifications/:id/read`
 
-## Testing flow
-
-1. Sign in with two different Clerk users (two browsers/incognito windows).
-2. Create/open a document with the first user.
-3. Create a document, optionally share with the second user.
-4. Open the document in one tab.
-5. Open the same document in another tab or another browser session.
-6. Start typing and confirm live updates.
-
-## Socket events
+## Realtime socket events
 
 - `join-doc`
 - `send-changes`
 - `receive-changes`
-
-## Optional Docker
-
-Run the full stack:
-
-```bash
-docker compose up --build
-```
-
-## Postman
-
-Import `postman/Realtime-Collab.postman_collection.json`
-
-## Clerk setup
-
-1. Create a Clerk application.
-2. Enable Google and GitHub social connections in Clerk.
-3. Put the publishable key in `frontend/.env`.
-4. Put the secret key in `backend/.env` for backend verification.
-5. Social login buttons stay disabled until `VITE_CLERK_PUBLISHABLE_KEY` is set.
-
-## Password recovery
-
-- Password recovery is handled by Clerk's hosted auth flow.
-- SMTP in this backend is currently used for document share emails.
+- `cursor-move`
+- `active-users`
 
 ## Supabase setup
 
 Run `supabase_schema.sql` in your Supabase SQL editor before first run.
 
----
+## Deployment checklist
 
-## Submission notes
+Backend:
 
-Before you submit or open a release PR, confirm the following:
-
-- Copy `.env.example` to the appropriate `.env` files and fill in your secrets locally; do not commit secrets.
-- Run frontend tests and build:
-
-```
-cd frontend
-npm ci
-npm run test
-npm run build
-```
-
-- Run backend build and any backend tests:
-
-```
+```bash
 cd backend
 npm ci
 npm run build
-# npm test (if tests are configured)
 ```
 
-- Update `CHANGELOG.md` with release notes and the PR description with verification steps.
+Frontend:
 
-If you want, I can prepare the release branch and commit these files for you (I already created them in this commit).
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+Set production environment values:
+
+- Backend: `NODE_ENV=production`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `AUTH_TOKEN_SECRET`, `CLIENT_URL`
+- Frontend: `VITE_API_URL`, `VITE_SOCKET_URL`
+
+## Hosting targets
+
+Frontend (Vercel):
+- Root directory: `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+- `frontend/vercel.json` already includes SPA rewrites.
+
+Backend (Azure App Service):
+- Runtime stack: Node.js 22 LTS on Linux.
+- Deploy the `backend/` directory as the app root.
+- Build command: `npm ci && npm run build`.
+- Startup command: `npm run start`.
+- Health check path: `/healthz`.
+- Enable WebSockets for Socket.IO.
+- Set required app settings in Azure (`NODE_ENV`, `SUPABASE_*`, `AUTH_TOKEN_SECRET`, `CLIENT_URL`, optional `CLIENT_URLS`, optional `REDIS_URL`, optional `SMTP_*`).

@@ -1,9 +1,9 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
-import { clerkClient } from "@clerk/clerk-sdk-node";
 import { trackDocumentEvent } from "../utils/analytics";
 import { isMissingTableError } from "../utils/dbErrors";
+import { emailFromUserId } from "../utils/userIdentity";
 
 // Our SQL table for comments is:
 // id, document_id, user_id, content, resolved, position, created_at
@@ -20,22 +20,7 @@ const shapeComment = (comment: any, authorEmail: string) => ({
 });
 
 const enrichWithUserEmails = async (comments: any[]) => {
-  const userIds = [...new Set(comments.map(c => c.user_id).filter(Boolean))];
-  const userMap = new Map();
-
-  if (userIds.length > 0) {
-    try {
-      const usersResp = await clerkClient.users.getUserList({ userId: userIds });
-      const userList: any[] = Array.isArray(usersResp) ? usersResp : (usersResp as any).data || [];
-      userList.forEach((u: any) => {
-        userMap.set(u.id, u.emailAddresses[0]?.emailAddress || "");
-      });
-    } catch (err) {
-      console.error("Clerk fetch users error in comments", err);
-    }
-  }
-
-  return comments.map(c => shapeComment(c, userMap.get(c.user_id) || "unknown"));
+  return comments.map((c) => shapeComment(c, emailFromUserId(c.user_id)));
 };
 
 const canAccessDocument = async (documentId: string, userId: string) => {

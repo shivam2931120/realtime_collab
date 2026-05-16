@@ -2,8 +2,9 @@ import { ReactNode, useEffect, useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import NotificationMenu from "./NotificationMenu";
 import { disconnectSocket } from "../services/socket";
-import { useClerk, useUser } from "@clerk/clerk-react";
 import { useUiStore } from "../store/uiStore";
+import { useAuthStore } from "../store/authStore";
+import { useDocStore } from "../store/docStore";
 
 type WorkspaceLayoutProps = {
   pageLabel: string;
@@ -30,9 +31,9 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   const searchTerm = useUiStore((state) => state.searchTerm);
   const setSearchTerm = useUiStore((state) => state.setSearchTerm);
   
-  const { signOut } = useClerk();
-  const { user } = useUser();
-  const email = user?.primaryEmailAddress?.emailAddress ?? "";
+  const clearSession = useAuthStore((state) => state.clearSession);
+  const email = useAuthStore((state) => state.user?.email ?? "");
+  const clearDocs = useDocStore((state) => state.clearDocs);
 
   const initials = useMemo(() => email.slice(0, 1).toUpperCase() || "U", [email]);
 
@@ -42,7 +43,8 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
 
   const handleLogout = async () => {
     disconnectSocket();
-    await signOut();
+    clearSession();
+    clearDocs();
     navigate("/login", { replace: true });
   };
 
