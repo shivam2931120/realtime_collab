@@ -19,13 +19,14 @@ import { SlashCommands } from "../components/editor/SlashCommands";
 import suggestion from "../components/editor/suggestion";
 import axios from "axios";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { connectSocket, disconnectSocket } from "../services/socket";
 import { DocItem, useDocStore } from "../store/docStore";
 import { DocComment } from "../types";
 import { getAuthToken } from "../services/auth";
 import { useAuthStore } from "../store/authStore";
+import { usePreferencesStore } from "../store/preferencesStore";
 
 type ShareRole = "editor" | "viewer";
 
@@ -60,6 +61,20 @@ const PRESENCE_IDLE_MS = 45_000;
 
 type SaveStatus = "saved" | "saving" | "queued" | "error";
 type ExportFormat = "html" | "markdown" | "pdf" | "docx" | "txt";
+
+const textColorOptions = [
+  { label: "Ink", value: "#131313" },
+  { label: "Green", value: "#047857" },
+  { label: "Blue", value: "#2563eb" },
+  { label: "Rose", value: "#be123c" },
+];
+
+const highlightColorOptions = [
+  { label: "Mint", value: "#bbf7d0" },
+  { label: "Amber", value: "#fde68a" },
+  { label: "Sky", value: "#bae6fd" },
+  { label: "Pink", value: "#fbcfe8" },
+];
 
 const buildAvatarUrl = (seedInput: string) =>
   `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(
@@ -100,7 +115,10 @@ const menuButtonClass =
 const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const userEmail = useAuthStore((state) => state.user?.email);
+  const sidebarCollapsed = usePreferencesStore((state) => state.sidebarCollapsed);
+  const setSidebarCollapsed = usePreferencesStore((state) => state.setSidebarCollapsed);
   const activeDoc = useDocStore((state) => state.activeDoc);
   const setActiveDoc = useDocStore((state) => state.setActiveDoc);
   const upsertDoc = useDocStore((state) => state.upsertDoc);
@@ -159,7 +177,7 @@ const EditorPage = () => {
       TableRow,
       TableHeader,
       TableCell,
-      Highlight,
+      Highlight.configure({ multicolor: true }),
       TextStyle,
       Color,
       Youtube.configure({
@@ -563,6 +581,44 @@ const EditorPage = () => {
     editor.chain().focus().setImage({ src: imageUrl }).run();
   };
 
+  const addYoutubeVideo = () => {
+    if (!editor) {
+      return;
+    }
+
+    const videoUrl = window.prompt("Paste YouTube URL");
+
+    if (!videoUrl) {
+      return;
+    }
+
+    editor.chain().focus().setYoutubeVideo({ src: videoUrl }).run();
+  };
+
+  const insertTable = () => {
+    editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  };
+
+  const clearFormatting = () => {
+    editor?.chain().focus().unsetAllMarks().clearNodes().run();
+  };
+
+  const applyBlockStyle = (value: string) => {
+    if (!editor) {
+      return;
+    }
+
+    const chain = editor.chain().focus();
+
+    if (value === "paragraph") {
+      chain.setParagraph().run();
+      return;
+    }
+
+    const headingLevel = Number(value.replace("h", "")) as 1 | 2 | 3;
+    chain.setHeading({ level: headingLevel }).run();
+  };
+
   const addComment = async () => {
     if (!id || !commentBody.trim()) {
       return;
@@ -757,6 +813,15 @@ const EditorPage = () => {
     input.click();
   };
 
+  const editorDisabled = !editor || activeDoc?.role === "viewer";
+  const currentBlockStyle = editor?.isActive("heading", { level: 1 })
+    ? "h1"
+    : editor?.isActive("heading", { level: 2 })
+      ? "h2"
+      : editor?.isActive("heading", { level: 3 })
+        ? "h3"
+        : "paragraph";
+
   const toolbarItems = [
     {
       icon: "format_bold",
@@ -777,6 +842,12 @@ const EditorPage = () => {
       label: "Underline",
     },
     {
+      icon: "strikethrough_s",
+      action: () => editor?.chain().focus().toggleStrike().run(),
+      active: editor?.isActive("strike"),
+      label: "Strike",
+    },
+    {
       icon: "format_list_bulleted",
       action: () => editor?.chain().focus().toggleBulletList().run(),
       active: editor?.isActive("bulletList"),
@@ -787,6 +858,12 @@ const EditorPage = () => {
       action: () => editor?.chain().focus().toggleOrderedList().run(),
       active: editor?.isActive("orderedList"),
       label: "Numbers",
+    },
+    {
+      icon: "checklist",
+      action: () => editor?.chain().focus().toggleTaskList().run(),
+      active: editor?.isActive("taskList"),
+      label: "Tasks",
     },
     {
       icon: "add_link",
@@ -801,10 +878,28 @@ const EditorPage = () => {
       label: "Image",
     },
     {
+      icon: "smart_display",
+      action: addYoutubeVideo,
+      active: false,
+      label: "YouTube",
+    },
+    {
+      icon: "table",
+      action: insertTable,
+      active: editor?.isActive("table"),
+      label: "Table",
+    },
+    {
       icon: "code",
       action: () => editor?.chain().focus().toggleCodeBlock().run(),
       active: editor?.isActive("codeBlock"),
       label: "Code",
+    },
+    {
+      icon: "horizontal_rule",
+      action: () => editor?.chain().focus().setHorizontalRule().run(),
+      active: false,
+      label: "Horizontal rule",
     },
   ];
 
@@ -831,9 +926,19 @@ const EditorPage = () => {
   const editMenuItems = [
     { label: "Undo", action: () => editor?.chain().focus().undo().run() },
     { label: "Redo", action: () => editor?.chain().focus().redo().run() },
+    { label: "Paragraph", action: () => editor?.chain().focus().setParagraph().run() },
     { label: "Heading 1", action: () => editor?.chain().focus().toggleHeading({ level: 1 }).run() },
     { label: "Heading 2", action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
+    { label: "Heading 3", action: () => editor?.chain().focus().toggleHeading({ level: 3 }).run() },
+    { label: "Strike", action: () => editor?.chain().focus().toggleStrike().run() },
+    { label: "Task list", action: () => editor?.chain().focus().toggleTaskList().run() },
+    { label: "Insert table", action: insertTable },
+    { label: "Insert YouTube embed", action: addYoutubeVideo },
+    { label: "Horizontal rule", action: () => editor?.chain().focus().setHorizontalRule().run() },
+    { label: "Clear formatting", action: clearFormatting },
+    { label: "Align left", action: () => editor?.chain().focus().setTextAlign("left").run() },
     { label: "Align center", action: () => editor?.chain().focus().setTextAlign("center").run() },
+    { label: "Align right", action: () => editor?.chain().focus().setTextAlign("right").run() },
   ];
 
   const viewMenuItems = [
@@ -877,6 +982,8 @@ const EditorPage = () => {
             ? "Plain text export"
             : "Markdown export";
   const exportPreviewText = stripContent(activeDoc?.content || "");
+  const wordCount = exportPreviewText.split(/\s+/).filter(Boolean).length;
+  const characterCount = exportPreviewText.length;
   const activePresence = activeUsers.map((user) => {
     const lastSeen = user.lastSeen || new Date(presenceClock).toISOString();
     const idle = Date.now() - new Date(lastSeen).getTime() > PRESENCE_IDLE_MS;
@@ -984,14 +1091,32 @@ const EditorPage = () => {
       </header>
 
       <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 lg:flex">
-          <div className="mb-8 flex items-center gap-3 px-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-container">
-              <span className="material-symbols-outlined text-sm text-primary">grid_view</span>
+        <aside
+          className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 transition-[width] duration-200 lg:flex ${
+            sidebarCollapsed ? "w-20" : "w-64"
+          }`}
+        >
+          <div className={`mb-8 flex gap-3 px-4 ${sidebarCollapsed ? "flex-col items-center" : "items-center justify-between"}`}>
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-container">
+                <span className="material-symbols-outlined text-sm text-primary">grid_view</span>
+              </div>
+              {!sidebarCollapsed ? (
+                <div className="min-w-0">
+                  <div className="text-lg font-bold leading-none text-white">Arena</div>
+                </div>
+              ) : null}
             </div>
-            <div>
-              <div className="text-lg font-bold leading-none text-white">Arena</div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="rounded p-1.5 text-on-surface-variant transition hover:bg-white/10 hover:text-white"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {sidebarCollapsed ? "keyboard_double_arrow_right" : "keyboard_double_arrow_left"}
+              </span>
+            </button>
           </div>
           <nav className="flex-1 space-y-1 px-4">
             {[
@@ -1005,20 +1130,27 @@ const EditorPage = () => {
                 key={item.label}
                 type="button"
                 onClick={() => navigate(item.to)}
-                className={`flex w-full items-center gap-3 rounded px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest transition-all duration-150 ${
-                  item.to === "/dashboard"
+                title={sidebarCollapsed ? item.label : undefined}
+                className={`flex w-full items-center rounded px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest transition-all duration-150 ${
+                  sidebarCollapsed ? "justify-center" : "gap-3"
+                } ${
+                  location.pathname === item.to
                     ? "border-r-2 border-primary-container bg-[#1c1b1b] text-[#10b981]"
-                    : "text-[#a3a3a3] hover:translate-x-1 hover:bg-[#1c1b1b] hover:text-white"
+                    : `text-[#a3a3a3] hover:bg-[#1c1b1b] hover:text-white ${sidebarCollapsed ? "" : "hover:translate-x-1"}`
                 }`}
               >
                 <span className="material-symbols-outlined">{item.icon}</span>
-                <span>{item.label}</span>
+                {!sidebarCollapsed ? <span>{item.label}</span> : null}
               </button>
             ))}
           </nav>
         </aside>
 
-        <main className="relative flex flex-1 flex-col overflow-hidden bg-surface-container-lowest lg:ml-64">
+        <main
+          className={`relative flex flex-1 flex-col overflow-hidden bg-surface-container-lowest transition-[margin] duration-200 ${
+            sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+          }`}
+        >
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/5 bg-surface-container-lowest px-8">
             <div className="flex items-center gap-4">
               <div>
@@ -1080,6 +1212,9 @@ const EditorPage = () => {
                   {activeDoc.role}
                 </span>
               ) : null}
+              <span className="hidden rounded border border-white/5 bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant md:inline-flex">
+                {wordCount} words · {characterCount} chars
+              </span>
             </div>
 
             <div className="flex items-center gap-3">
@@ -1130,28 +1265,96 @@ const EditorPage = () => {
           >
             <div className={`mx-auto flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[800px]"}`}>
               <div className="sticky top-4 z-40 mx-auto mb-12 flex items-center justify-center">
-                <div className="editorial-editor-toolbar flex flex-wrap items-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-4 py-2 shadow-2xl backdrop-blur-xl">
+                <div className="editorial-editor-toolbar flex max-w-full flex-wrap items-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-4 py-2 shadow-2xl backdrop-blur-xl">
+                  <select
+                    value={currentBlockStyle}
+                    disabled={editorDisabled}
+                    onChange={(event) => applyBlockStyle(event.target.value)}
+                    className="mr-2 h-8 rounded border border-white/10 bg-surface-container px-2 text-xs font-semibold text-white outline-none transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Block style"
+                  >
+                    <option value="paragraph">Body</option>
+                    <option value="h1">H1</option>
+                    <option value="h2">H2</option>
+                    <option value="h3">H3</option>
+                  </select>
                   {toolbarItems.map((item, index) => (
                     <div key={item.label} className="flex items-center">
                       <button
                         type="button"
                         title={item.label}
-                        disabled={!editor || activeDoc?.role === "viewer"}
+                        disabled={editorDisabled}
                         onClick={item.action}
                         className={item.active ? "active" : ""}
                       >
                         <span className="material-symbols-outlined text-lg">{item.icon}</span>
                       </button>
-                      {index === 2 || index === 4 ? <div className="mx-2 h-4 w-px bg-white/10" /> : null}
+                      {index === 3 || index === 6 || index === 10 ? <div className="mx-2 h-4 w-px bg-white/10" /> : null}
                     </div>
+                  ))}
+                  <div className="mx-2 h-4 w-px bg-white/10" />
+                  {(["left", "center", "right"] as const).map((alignment) => (
+                    <button
+                      key={alignment}
+                      type="button"
+                      title={`Align ${alignment}`}
+                      disabled={editorDisabled}
+                      onClick={() => editor?.chain().focus().setTextAlign(alignment).run()}
+                      className={editor?.isActive({ textAlign: alignment }) ? "active" : ""}
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        {alignment === "left" ? "format_align_left" : alignment === "center" ? "format_align_center" : "format_align_right"}
+                      </span>
+                    </button>
                   ))}
                   <button
                     type="button"
+                    title="Quote"
+                    disabled={editorDisabled}
                     onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-                    className={editor?.isActive("blockquote") ? "active rounded p-1.5 text-primary" : "rounded p-1.5 text-white"}
+                    className={editor?.isActive("blockquote") ? "active" : ""}
                   >
                     <span className="material-symbols-outlined text-lg">format_quote</span>
                   </button>
+                  <button
+                    type="button"
+                    title="Clear formatting"
+                    disabled={editorDisabled}
+                    onClick={clearFormatting}
+                  >
+                    <span className="material-symbols-outlined text-lg">format_clear</span>
+                  </button>
+                  <div className="mx-2 h-4 w-px bg-white/10" />
+                  <div className="flex items-center gap-1" title="Text color">
+                    {textColorOptions.map((color) => (
+                      <button
+                        key={color.value}
+                        type="button"
+                        disabled={editorDisabled}
+                        onClick={() => editor?.chain().focus().setColor(color.value).run()}
+                        className={`h-6 w-6 rounded-full border !p-0 ${
+                          editor?.isActive("textStyle", { color: color.value }) ? "border-white" : "border-white/20"
+                        }`}
+                        style={{ backgroundColor: color.value }}
+                        title={`${color.label} text`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1" title="Highlight color">
+                    {highlightColorOptions.map((color) => (
+                      <button
+                        key={color.value}
+                        type="button"
+                        disabled={editorDisabled}
+                        onClick={() => editor?.chain().focus().toggleHighlight({ color: color.value }).run()}
+                        className={`h-6 w-6 rounded-full border !p-0 ${
+                          editor?.isActive("highlight", { color: color.value }) ? "border-white" : "border-white/20"
+                        }`}
+                        style={{ backgroundColor: color.value }}
+                        title={`${color.label} highlight`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -1421,7 +1624,7 @@ const EditorPage = () => {
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Export preview</p>
                 <h2 className="mt-2 text-2xl font-bold text-white">{exportPreviewTitle}</h2>
                 <p className="mt-1 text-xs text-on-surface-variant">
-                  {activeDoc?.title || "Untitled"} · {exportPreviewText.split(/\s+/).filter(Boolean).length} words
+                  {activeDoc?.title || "Untitled"} · {wordCount} words
                 </p>
               </div>
               <button

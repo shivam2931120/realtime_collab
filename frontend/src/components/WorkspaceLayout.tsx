@@ -35,6 +35,8 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   const clearSession = useAuthStore((state) => state.clearSession);
   const email = useAuthStore((state) => state.user?.email ?? "");
   const profile = usePreferencesStore((state) => state.profile);
+  const sidebarCollapsed = usePreferencesStore((state) => state.sidebarCollapsed);
+  const setSidebarCollapsed = usePreferencesStore((state) => state.setSidebarCollapsed);
   const clearDocs = useDocStore((state) => state.clearDocs);
 
   const initials = useMemo(() => (profile.displayName || email).slice(0, 1).toUpperCase() || "U", [email, profile.displayName]);
@@ -125,22 +127,40 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
       </header>
 
       <div className="flex">
-        <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 md:flex">
-          <div className="mb-8 flex items-center gap-3 px-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-primary-container">
-              <span
-                className="material-symbols-outlined text-lg text-on-primary-container"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                architecture
+        <aside
+          className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 transition-[width] duration-200 md:flex ${
+            sidebarCollapsed ? "w-20" : "w-64"
+          }`}
+        >
+          <div className={`mb-8 flex gap-3 px-4 ${sidebarCollapsed ? "flex-col items-center" : "items-center justify-between"}`}>
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded bg-primary-container">
+                <span
+                  className="material-symbols-outlined text-lg text-on-primary-container"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  architecture
+                </span>
+              </div>
+              {!sidebarCollapsed ? (
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold leading-tight text-white">Main Lab</h2>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary-container">
+                    Pro Plan
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="rounded p-1.5 text-on-surface-variant transition hover:bg-white/10 hover:text-white"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {sidebarCollapsed ? "keyboard_double_arrow_right" : "keyboard_double_arrow_left"}
               </span>
-            </div>
-            <div>
-              <h2 className="text-lg font-bold leading-tight text-white">Main Lab</h2>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-primary-container">
-                Pro Plan
-              </p>
-            </div>
+            </button>
           </div>
 
           <nav className="flex-1 space-y-1 px-3">
@@ -148,16 +168,19 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
               <NavLink
                 key={item.label}
                 to={item.to}
+                title={sidebarCollapsed ? item.label : undefined}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 text-xs font-semibold uppercase tracking-widest transition-all duration-150 ${
+                  `flex items-center rounded px-3 py-2 text-xs font-semibold uppercase tracking-widest transition-all duration-150 ${
+                    sidebarCollapsed ? "justify-center" : "gap-3"
+                  } ${
                     isActive
                       ? "border-r-2 border-primary-container bg-[#1c1b1b] text-primary-container"
-                      : "text-[#a3a3a3] hover:translate-x-1 hover:bg-[#1c1b1b] hover:text-white"
+                      : `text-[#a3a3a3] hover:bg-[#1c1b1b] hover:text-white ${sidebarCollapsed ? "" : "hover:translate-x-1"}`
                   }`
                 }
               >
                 <span className="material-symbols-outlined">{item.icon}</span>
-                <span>{item.label}</span>
+                {!sidebarCollapsed ? <span>{item.label}</span> : null}
               </NavLink>
             ))}
           </nav>
@@ -165,7 +188,11 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
 
         </aside>
 
-        <main className="min-h-screen flex-1 bg-surface-container-lowest p-6 md:ml-64 md:p-10">
+        <main
+          className={`min-h-screen flex-1 bg-surface-container-lowest p-6 transition-[margin] duration-200 md:p-10 ${
+            sidebarCollapsed ? "md:ml-20" : "md:ml-64"
+          }`}
+        >
           <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-primary">

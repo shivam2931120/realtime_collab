@@ -14,9 +14,11 @@ export type ProfilePreferences = {
 type PreferencesState = {
   documentPreferences: Record<string, DocumentPreference>;
   profile: ProfilePreferences;
+  sidebarCollapsed: boolean;
   toggleStarred: (documentId: string) => void;
   togglePinned: (documentId: string) => void;
   updateProfile: (profile: ProfilePreferences) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
 };
 
 const STORAGE_KEY = "editorial.preferences.v1";
@@ -32,25 +34,26 @@ const hasStorage = () => typeof window !== "undefined" && Boolean(window.localSt
 const loadPreferences = () => {
   try {
     if (!hasStorage()) {
-      return { documentPreferences: {}, profile: defaultProfile };
+      return { documentPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
     }
 
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return { documentPreferences: {}, profile: defaultProfile };
+      return { documentPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
     }
 
     const parsed = JSON.parse(raw);
     return {
       documentPreferences: parsed.documentPreferences || {},
       profile: { ...defaultProfile, ...(parsed.profile || {}) },
+      sidebarCollapsed: Boolean(parsed.sidebarCollapsed),
     };
   } catch {
-    return { documentPreferences: {}, profile: defaultProfile };
+    return { documentPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
   }
 };
 
-const persistPreferences = (state: Pick<PreferencesState, "documentPreferences" | "profile">) => {
+const persistPreferences = (state: Pick<PreferencesState, "documentPreferences" | "profile" | "sidebarCollapsed">) => {
   if (!hasStorage()) {
     return;
   }
@@ -60,6 +63,7 @@ const persistPreferences = (state: Pick<PreferencesState, "documentPreferences" 
     JSON.stringify({
       documentPreferences: state.documentPreferences,
       profile: state.profile,
+      sidebarCollapsed: state.sidebarCollapsed,
     }),
   );
 };
@@ -69,6 +73,7 @@ const initialPreferences = loadPreferences();
 export const usePreferencesStore = create<PreferencesState>((set) => ({
   documentPreferences: initialPreferences.documentPreferences,
   profile: initialPreferences.profile,
+  sidebarCollapsed: initialPreferences.sidebarCollapsed,
   toggleStarred: (documentId) =>
     set((state) => {
       const current = state.documentPreferences[documentId] || {};
@@ -98,6 +103,12 @@ export const usePreferencesStore = create<PreferencesState>((set) => ({
   updateProfile: (profile) =>
     set((state) => {
       const next = { ...state, profile };
+      persistPreferences(next);
+      return next;
+    }),
+  setSidebarCollapsed: (sidebarCollapsed) =>
+    set((state) => {
+      const next = { ...state, sidebarCollapsed };
       persistPreferences(next);
       return next;
     }),

@@ -81,6 +81,10 @@ body {
   @apply pb-0 pt-6 text-2xl font-bold text-[#131313];
 }
 
+.editorial-editor h3 {
+  @apply pb-0 pt-4 text-xl font-bold text-[#131313];
+}
+
 .editorial-editor p {
   @apply mb-4 text-lg leading-relaxed text-[#404040];
 }
@@ -102,8 +106,65 @@ body {
   @apply my-10 border-l-4 border-primary bg-black/[0.03] py-2 pl-6 italic text-[#131313];
 }
 
+.editorial-editor a {
+  @apply font-semibold text-[#047857] underline underline-offset-4;
+}
+
 .editorial-editor code {
   @apply rounded bg-black/5 px-1.5 py-0.5 text-[0.95em] text-[#131313];
+}
+
+.editorial-editor pre {
+  @apply my-6 overflow-x-auto rounded bg-[#131313] p-5 text-sm leading-relaxed text-white;
+}
+
+.editorial-editor pre code {
+  @apply bg-transparent p-0 text-white;
+}
+
+.editorial-editor mark {
+  @apply rounded px-1;
+}
+
+.editorial-editor img {
+  @apply my-6 max-w-full rounded border border-black/10;
+}
+
+.editorial-editor iframe {
+  @apply my-6 aspect-video w-full rounded border border-black/10;
+}
+
+.editorial-editor hr {
+  @apply my-10 border-0 border-t border-black/10;
+}
+
+.editorial-editor table {
+  @apply my-8 w-full border-collapse overflow-hidden rounded text-left text-sm text-[#404040];
+}
+
+.editorial-editor th,
+.editorial-editor td {
+  @apply border border-black/10 px-4 py-3 align-top;
+}
+
+.editorial-editor th {
+  @apply bg-black/[0.04] font-bold text-[#131313];
+}
+
+.editorial-editor ul[data-type="taskList"] {
+  @apply ml-0 list-none;
+}
+
+.editorial-editor ul[data-type="taskList"] li {
+  @apply flex items-start gap-3;
+}
+
+.editorial-editor ul[data-type="taskList"] li > label {
+  @apply mt-1;
+}
+
+.editorial-editor ul[data-type="taskList"] input[type="checkbox"] {
+  @apply h-4 w-4 accent-primary;
 }
 
 .editorial-editor p.is-editor-empty:first-child::before {
