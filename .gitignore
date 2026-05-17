@@ -10,8 +10,12 @@ frontend/*.tsbuildinfo
 *.log
 
 # ignore environment files with secrets
+.env
 /backend/.env
 /frontend/.env
 .env.local
 .env.*.local
 backend/.env
+
+# local deployment links
+.vercel

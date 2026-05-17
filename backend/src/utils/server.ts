@@ -5,36 +5,44 @@ import { Server } from "socket.io";
 import docRoutes from "../routes/docRoutes";
 import notificationRoutes from "../routes/notificationRoutes";
 import authRoutes from "../routes/authRoutes";
-import { metricsHandler, metricsMiddleware } from "./monitoring";
+
+const normalizeOrigin = (value: string) => value.trim().replace(/\/+$/, "");
+
+const parseOrigins = (value: string | undefined) =>
+  String(value || "")
+    .split(",")
+    .map(normalizeOrigin)
+    .filter(Boolean);
 
 export const createServer = () => {
   const app = express();
-  const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-  const clientUrls = (process.env.CLIENT_URLS || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const allowedOrigins = Array.from(new Set([clientUrl, ...clientUrls]));
+  const configuredClientUrl = normalizeOrigin(process.env.CLIENT_URL || "");
+  const primaryClientUrl = configuredClientUrl || "http://localhost:5173";
+  const allowedOrigins = Array.from(new Set([primaryClientUrl, ...parseOrigins(process.env.CLIENT_URLS)]));
+  const allowAllOrigins = allowedOrigins.includes("*");
+
+  const isAllowedOrigin = (origin?: string) => {
+    if (!origin) return true;
+    if (allowAllOrigins) return true;
+    return allowedOrigins.includes(normalizeOrigin(origin));
+  };
+
+  const corsOrigin = (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  };
 
   app.use(
     cors({
-      origin: (origin, callback) => {
-        if (!origin) {
-          return callback(null, true);
-        }
-
-        if (allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        }
-
-        return callback(new Error(`CORS blocked for origin: ${origin}`));
-      },
+      origin: corsOrigin,
       credentials: true,
     }),
   );
 
   app.use(express.json({ limit: "2mb" }));
-  app.use(metricsMiddleware);
   // Cloud health checks may hit "/"; return 200 to avoid deploy failures.
   app.get("/", (_req, res) => res.status(200).send("ok"));
   // Kubernetes / PaaS style health endpoint
@@ -44,8 +52,6 @@ export const createServer = () => {
     res.json({ status: "ok" });
   });
 
-  app.get("/api/metrics", metricsHandler);
-
   app.use("/api/auth", authRoutes);
   app.use("/api/docs", docRoutes);
   app.use("/api/notifications", notificationRoutes);
@@ -53,7 +59,7 @@ export const createServer = () => {
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: allowedOrigins,
+      origin: corsOrigin,
       credentials: true,
     },
   });

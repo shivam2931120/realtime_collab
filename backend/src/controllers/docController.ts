@@ -96,6 +96,8 @@ const parseShareTargets = async (input: unknown, ownerId: string) => {
 
 import { sendDocumentSharedEmail } from "../utils/mailer";
 
+const getClientUrl = () => String(process.env.CLIENT_URL || "").trim().replace(/\/+$/, "") || "http://localhost:5173";
+
 const createShareNotifications = async ({
   documentId,
   documentTitle,
@@ -130,7 +132,7 @@ const createShareNotifications = async ({
 
   await supabase.from("notifications").insert(notifications);
 
-  const documentUrl = `${process.env.CLIENT_URL}/editor/${documentId}`;
+  const documentUrl = `${getClientUrl()}/editor/${documentId}`;
   const sentTo = new Set<string>();
   const actorEmailKey = actorEmail.toLowerCase();
 

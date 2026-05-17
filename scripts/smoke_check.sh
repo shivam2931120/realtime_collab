@@ -15,7 +15,4 @@ curl -fsS -X POST "${BASE_URL}/api/auth/session" \
   -H "Content-Type: application/json" \
   -d '{"email":"smoke@example.com"}' >/dev/null || { echo "Auth smoke check failed"; exit 2; }
 
-echo "Checking metrics at ${BASE_URL}/api/metrics"
-curl -fsS "${BASE_URL}/api/metrics" >/dev/null || echo "Metrics endpoint not available or inaccessible"
-
 echo "Smoke checks passed"

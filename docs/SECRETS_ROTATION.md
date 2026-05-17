@@ -13,7 +13,7 @@ If secrets are exposed, follow these steps immediately:
    - Force-push rewritten branches and notify collaborators to re-clone.
 
 3. Update deployments with new secrets:
-   - Update Azure App Service application settings, Vercel environment variables, and any managed cloud secret stores.
+   - Update Render environment variables, Vercel environment variables, and any managed cloud secret stores.
    - Redeploy services with new secrets.
 
 4. Verify functionality:
@@ -21,4 +21,4 @@ If secrets are exposed, follow these steps immediately:
 
 5. Post-incident:
    - Document the incident and rotation steps in this file.
-   - Keep secrets only in managed env stores (Azure App Service/Vercel) and rotate on schedule.
+   - Keep secrets only in managed env stores (Render/Vercel) and rotate on schedule.

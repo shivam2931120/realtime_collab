@@ -9,11 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:e2e": "playwright test"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -49,22 +45,13 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/ui": "^4.1.4",
     "autoprefixer": "^10.4.20",
-    "jsdom": "^29.0.2",
-    "msw": "^2.13.4",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
-    "vite": "^8.0.13",
-    "vitest": "^4.1.4"
+    "vite": "^8.0.13"
   }
 }

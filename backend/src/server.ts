@@ -15,7 +15,7 @@ const bootstrap = async () => {
   const port = Number(process.env.PORT || 5000);
 
   httpServer.listen(port, () => {
-    console.log(`Backend running on http://localhost:${port}`);
+    console.log(`Backend listening on port ${port}`);
   });
 };
 
