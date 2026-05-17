@@ -33,6 +33,8 @@ type ActiveSession = {
   sessionId: string;
   userId: string;
   email?: string;
+  joinedAt?: string;
+  lastSeen?: string;
 };
 
 type RemoteCursor = {
@@ -54,6 +56,10 @@ type PositionedCursor = {
 const CURSOR_EMIT_INTERVAL_MS = 70;
 const CURSOR_COLUMN_BUCKET = 12;
 const CURSOR_STACK_OFFSET = 22;
+const PRESENCE_IDLE_MS = 45_000;
+
+type SaveStatus = "saved" | "saving" | "queued" | "error";
+type ExportFormat = "html" | "markdown" | "pdf" | "docx" | "txt";
 
 const buildAvatarUrl = (seedInput: string) =>
   `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(
@@ -70,6 +76,24 @@ const clampCursorPosition = (pos: number, maxPos: number) =>
 const stripContent = (content: string) =>
   content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
+const tagHue = (tag: string) =>
+  Array.from(tag).reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+
+const roleBadgeClass = (role: "owner" | "editor" | "viewer") =>
+  role === "owner"
+    ? "bg-primary-container text-on-primary-container"
+    : role === "editor"
+      ? "bg-blue-500/15 text-blue-200"
+      : "bg-white/10 text-on-surface-variant";
+
+const formatLastSeen = (value?: string) => {
+  if (!value) return "active now";
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 10) return "active now";
+  if (seconds < 60) return `${seconds}s ago`;
+  return `${Math.floor(seconds / 60)}m ago`;
+};
+
 const menuButtonClass =
   "rounded px-3 py-1 transition-colors duration-200 hover:bg-[#201f1f]";
 
@@ -83,7 +107,10 @@ const EditorPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [socketState, setSocketState] = useState("offline");
+  const [browserOnline, setBrowserOnline] = useState(() => navigator.onLine);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [comments, setComments] = useState<DocComment[]>([]);
+  const [commentFilter, setCommentFilter] = useState<"open" | "resolved" | "all">("open");
   const [commentBody, setCommentBody] = useState("");
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareEmails, setShareEmails] = useState("");
@@ -104,7 +131,12 @@ const EditorPage = () => {
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>([]);
   const [positionedCursors, setPositionedCursors] = useState<PositionedCursor[]>([]);
   const [scrollVersion, setScrollVersion] = useState(0);
+  const [presenceClock, setPresenceClock] = useState(() => Date.now());
+  const [exportPreviewFormat, setExportPreviewFormat] = useState<ExportFormat | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
+  const retryTimerRef = useRef<number | undefined>(undefined);
+  const queuedSaveContentRef = useRef<string | null>(null);
+  const savingContentRef = useRef(false);
   const applyingRemoteRef = useRef(false);
   const docRef = useRef<DocItem | null>(null);
   const cursorEmitRef = useRef<number>(0);
@@ -152,6 +184,91 @@ const EditorPage = () => {
   useEffect(() => {
     docRef.current = activeDoc;
   }, [activeDoc]);
+
+  const flushQueuedSave = async () => {
+    if (!id || savingContentRef.current || !queuedSaveContentRef.current) {
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setSaveStatus("queued");
+      return;
+    }
+
+    const content = queuedSaveContentRef.current;
+    queuedSaveContentRef.current = null;
+    savingContentRef.current = true;
+    setSaveStatus("saving");
+
+    try {
+      await api.put(`/docs/${id}`, { content });
+      setSaveStatus(queuedSaveContentRef.current ? "queued" : "saved");
+    } catch (requestError) {
+      console.error("Document save failed", requestError);
+      queuedSaveContentRef.current = content;
+      setSaveStatus(navigator.onLine ? "error" : "queued");
+      window.clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = window.setTimeout(() => {
+        flushQueuedSave().catch(console.error);
+      }, 3000);
+    } finally {
+      savingContentRef.current = false;
+      if (queuedSaveContentRef.current && navigator.onLine) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = window.setTimeout(() => {
+          flushQueuedSave().catch(console.error);
+        }, 250);
+      }
+    }
+  };
+
+  const queueSave = (content: string) => {
+    queuedSaveContentRef.current = content;
+    setSaveStatus(navigator.onLine ? "queued" : "queued");
+    window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      flushQueuedSave().catch(console.error);
+    }, 700);
+  };
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setBrowserOnline(true);
+      flushQueuedSave().catch(console.error);
+    };
+    const handleOffline = () => {
+      setBrowserOnline(false);
+      setSaveStatus((current) => (current === "saving" ? "queued" : current));
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.clearTimeout(retryTimerRef.current);
+    };
+  }, [id]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setPresenceClock(Date.now()), 5000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!queuedSaveContentRef.current || saveStatus === "saved") {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveStatus]);
 
   const loadDocument = async () => {
     if (!id) {
@@ -222,6 +339,7 @@ const EditorPage = () => {
 
     let socket: ReturnType<typeof connectSocket> | null = null;
     let isActive = true;
+    let presenceInterval: number | undefined;
 
     const initializeSocket = async () => {
       const token = getAuthToken();
@@ -232,7 +350,10 @@ const EditorPage = () => {
       socket = connectSocket(token);
       const canEdit = currentDoc.role !== "viewer";
 
-      const handleConnect = () => setSocketState("connected");
+      const handleConnect = () => {
+        setSocketState("connected");
+        flushQueuedSave().catch(console.error);
+      };
       const handleDisconnect = () => setSocketState("offline");
       const handleConnectError = async (err: { message?: string }) => {
         const message = String(err?.message || "");
@@ -294,14 +415,7 @@ const EditorPage = () => {
         setActiveDoc(nextDoc);
         upsertDoc(nextDoc);
 
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = window.setTimeout(async () => {
-          try {
-            await api.put(`/docs/${id}`, { content });
-          } catch (requestError) {
-            console.error("Document save failed", requestError);
-          }
-        }, 700);
+        queueSave(content);
       };
 
       const emitCursorPosition = () => {
@@ -324,6 +438,9 @@ const EditorPage = () => {
 
       const handleSelectionUpdate = () => emitCursorPosition();
       const handleEditorTyping = () => emitCursorPosition();
+      presenceInterval = window.setInterval(() => {
+        socket?.emit("presence-ping", id);
+      }, 15000);
 
       if (socket?.connected) {
         setSocketState("connected");
@@ -358,6 +475,7 @@ const EditorPage = () => {
         socket.off("doc-error");
         socket.off("connect_error");
       }
+      window.clearInterval(presenceInterval);
       editor.off("update");
       editor.off("selectionUpdate");
       editor.off("transaction");
@@ -458,6 +576,18 @@ const EditorPage = () => {
     setCommentBody("");
   };
 
+  const toggleCommentResolved = async (comment: DocComment) => {
+    if (!id) return;
+
+    const response = await api.put<{ comment: DocComment }>(`/docs/${id}/comments/${comment.id}`, {
+      resolved: !comment.resolved,
+    });
+
+    setComments((current) =>
+      current.map((item) => (item.id === comment.id ? response.data.comment : item)),
+    );
+  };
+
   const handleShare = async () => {
     if (!id || !activeDoc) {
       return;
@@ -546,7 +676,7 @@ const EditorPage = () => {
     }
   };
 
-  const exportFromServer = async (format: "html" | "markdown" | "pdf" | "docx" | "txt") => {
+  const exportFromServer = async (format: ExportFormat) => {
     if (!id) {
       return;
     }
@@ -682,11 +812,12 @@ const EditorPage = () => {
     { label: "Rename document", action: handleRename },
     { label: "Share document", action: () => setShareModalOpen(true) },
     { label: "Import file", action: importFile },
-    { label: "Export as HTML", action: () => exportFromServer("html") },
-    { label: "Export as Markdown", action: () => exportFromServer("markdown") },
-    { label: "Export as PDF", action: () => exportFromServer("pdf") },
-    { label: "Export as DOCX", action: () => exportFromServer("docx") },
-    { label: "Export as TXT", action: () => exportFromServer("txt") },
+    { label: "Preview export", action: () => setExportPreviewFormat("markdown") },
+    { label: "Export as HTML", action: () => setExportPreviewFormat("html") },
+    { label: "Export as Markdown", action: () => setExportPreviewFormat("markdown") },
+    { label: "Export as PDF", action: () => setExportPreviewFormat("pdf") },
+    { label: "Export as DOCX", action: () => setExportPreviewFormat("docx") },
+    { label: "Export as TXT", action: () => setExportPreviewFormat("txt") },
     { label: "Open Template Library", action: () => navigate("/library") },
     {
       label: "Copy editor link",
@@ -727,6 +858,40 @@ const EditorPage = () => {
 
     navigate("/dashboard");
   };
+
+  const filteredComments = comments.filter((comment) => {
+    if (commentFilter === "all") return true;
+    if (commentFilter === "resolved") return comment.resolved;
+    return !comment.resolved;
+  });
+  const openCommentCount = comments.filter((comment) => !comment.resolved).length;
+  const resolvedCommentCount = comments.length - openCommentCount;
+  const exportPreviewTitle =
+    exportPreviewFormat === "html"
+      ? "HTML export"
+      : exportPreviewFormat === "pdf"
+        ? "PDF export"
+        : exportPreviewFormat === "docx"
+          ? "DOCX export"
+          : exportPreviewFormat === "txt"
+            ? "Plain text export"
+            : "Markdown export";
+  const exportPreviewText = stripContent(activeDoc?.content || "");
+  const activePresence = activeUsers.map((user) => {
+    const lastSeen = user.lastSeen || new Date(presenceClock).toISOString();
+    const idle = Date.now() - new Date(lastSeen).getTime() > PRESENCE_IDLE_MS;
+    return { ...user, idle };
+  });
+  const idleCount = activePresence.filter((user) => user.idle).length;
+  const onlineProblem = !browserOnline || socketState !== "connected";
+  const saveStatusLabel =
+    saveStatus === "saving"
+      ? "Saving..."
+      : saveStatus === "queued"
+        ? "Queued"
+        : saveStatus === "error"
+          ? "Retrying"
+          : "Saved";
 
   if (loading) {
     return (
@@ -864,7 +1029,14 @@ const EditorPage = () => {
                 {tags.length ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {tags.map((tag) => (
-                      <span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      <span
+                        key={tag}
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{
+                          backgroundColor: `hsl(${tagHue(tag)} 70% 45% / 0.16)`,
+                          color: `hsl(${tagHue(tag)} 75% 75%)`,
+                        }}
+                      >
                         #{tag}
                       </span>
                     ))}
@@ -872,22 +1044,42 @@ const EditorPage = () => {
                 ) : null}
               </div>
               <div className="flex items-center gap-2 rounded border border-white/5 bg-surface-container-high px-2 py-0.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">Saved</span>
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    saveStatus === "saved"
+                      ? "bg-primary shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                      : saveStatus === "error"
+                        ? "bg-red-400"
+                        : "bg-yellow-300"
+                  }`}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">{saveStatusLabel}</span>
               </div>
-              {activeUsers.length > 0 && (
-                <div className="ml-4 flex -space-x-2 overflow-hidden">
-                  {activeUsers.map((u) => (
-                    <div
-                      key={u.sessionId}
-                      title={u.email || "Anonymous"}
-                      className="inline-block h-6 w-6 rounded-full ring-2 ring-surface-container-lowest bg-surface-container-highest flex items-center justify-center text-[10px] font-bold text-white uppercase"
-                    >
-                      {(u.email || "A")[0]}
-                    </div>
-                  ))}
+              {activePresence.length > 0 && (
+                <div className="ml-4 flex items-center gap-3">
+                  <div className="flex -space-x-2 overflow-hidden">
+                    {activePresence.map((u) => (
+                      <div
+                        key={u.sessionId}
+                        title={`${u.email || "Anonymous"} · ${u.idle ? "idle" : "active"} · ${formatLastSeen(u.lastSeen)}`}
+                        className={`inline-block h-6 w-6 rounded-full ring-2 ring-surface-container-lowest flex items-center justify-center text-[10px] font-bold text-white uppercase ${
+                          u.idle ? "bg-surface-container-highest opacity-60" : "bg-primary/80"
+                        }`}
+                      >
+                        {(u.email || "A")[0]}
+                      </div>
+                    ))}
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    {activePresence.length} online{idleCount ? ` · ${idleCount} idle` : ""}
+                  </span>
                 </div>
               )}
+              {activeDoc?.role ? (
+                <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(activeDoc.role)}`}>
+                  {activeDoc.role}
+                </span>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-3">
@@ -903,6 +1095,34 @@ const EditorPage = () => {
               </button>
             </div>
           </header>
+
+          {onlineProblem ? (
+            <div className="border-b border-yellow-400/20 bg-yellow-400/10 px-8 py-2 text-xs font-semibold text-yellow-100">
+              {!browserOnline
+                ? "You are offline. Edits are queued locally and will retry when your connection returns."
+                : "Realtime connection is unavailable. Edits keep saving through the retry queue."}
+            </div>
+          ) : null}
+
+          {activePresence.length ? (
+            <div className="border-b border-white/5 bg-surface-container-lowest px-8 py-2">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-on-surface-variant">
+                <span className="font-bold uppercase tracking-widest text-primary">Collaborators</span>
+                {activePresence.map((user) => (
+                  <span
+                    key={user.sessionId}
+                    className={`rounded-full border px-2 py-1 ${
+                      user.idle
+                        ? "border-white/10 bg-white/5 text-on-surface-variant"
+                        : "border-primary/30 bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {user.email || "Anonymous"} · {user.idle ? "idle" : "active"} · {formatLastSeen(user.lastSeen)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div
             className="flex flex-1 overflow-y-auto px-4 pb-32 pt-8 md:px-8"
@@ -985,7 +1205,22 @@ const EditorPage = () => {
           <aside className="hidden w-80 flex-col gap-6 overflow-y-auto border-l border-white/5 bg-surface p-6 xl:flex">
             <div className="flex items-center justify-between">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Comments</h4>
-              <span className="text-[10px] font-bold text-primary">{comments.length} Active</span>
+              <span className="text-[10px] font-bold text-primary">{openCommentCount} Open</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 rounded border border-white/5 bg-surface-container-low p-1">
+              {(["open", "resolved", "all"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setCommentFilter(filter)}
+                  className={`rounded px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition ${
+                    commentFilter === filter ? "bg-primary/20 text-primary" : "text-on-surface-variant hover:text-white"
+                  }`}
+                >
+                  {filter === "open" ? `Open ${openCommentCount}` : filter === "resolved" ? `Done ${resolvedCommentCount}` : "All"}
+                </button>
+              ))}
             </div>
 
             <div className="space-y-3">
@@ -1004,9 +1239,14 @@ const EditorPage = () => {
               </button>
             </div>
 
-            {comments.length ? (
-              comments.map((comment) => (
-                <div key={comment.id} className="space-y-3 rounded-lg border-l-2 border-primary bg-surface-container p-4 shadow-sm">
+            {filteredComments.length ? (
+              filteredComments.map((comment) => (
+                <div
+                  key={comment.id}
+                  className={`space-y-3 rounded-lg border-l-2 bg-surface-container p-4 shadow-sm ${
+                    comment.resolved ? "border-white/10 opacity-75" : "border-primary"
+                  }`}
+                >
                   <div className="flex items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-highest text-[10px] uppercase text-white">
                       {comment.author.email.slice(0, 2)}
@@ -1017,11 +1257,21 @@ const EditorPage = () => {
                     </div>
                   </div>
                   <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
+                  <button
+                    type="button"
+                    onClick={() => toggleCommentResolved(comment).catch(console.error)}
+                    className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">
+                      {comment.resolved ? "undo" : "task_alt"}
+                    </span>
+                    {comment.resolved ? "Reopen" : "Resolve"}
+                  </button>
                 </div>
               ))
             ) : (
               <div className="rounded-lg bg-surface-container/50 p-4 text-sm text-on-surface-variant">
-                No comments yet for this document.
+                No {commentFilter === "all" ? "" : commentFilter} comments for this document.
               </div>
             )}
 
@@ -1132,7 +1382,9 @@ const EditorPage = () => {
                     activeDoc.collaborators.map((item) => (
                       <div key={`${item.id}-${item.email}`} className="flex items-center justify-between rounded bg-surface-container-high p-3 text-sm text-white">
                         <span>{item.email}</span>
-                        <span className="text-xs uppercase tracking-widest text-primary">{item.role}</span>
+                        <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(item.role)}`}>
+                          {item.role}
+                        </span>
                       </div>
                     ))
                   ) : (
@@ -1156,6 +1408,76 @@ const EditorPage = () => {
                   {savingShare ? "Saving..." : "Share"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {exportPreviewFormat ? (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/75 px-4">
+          <div className="editorial-panel flex max-h-[86vh] w-full max-w-3xl flex-col rounded-lg border border-outline-variant/10 p-6 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Export preview</p>
+                <h2 className="mt-2 text-2xl font-bold text-white">{exportPreviewTitle}</h2>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  {activeDoc?.title || "Untitled"} · {exportPreviewText.split(/\s+/).filter(Boolean).length} words
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExportPreviewFormat(null)}
+                className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="mb-4 flex flex-wrap gap-2">
+              {(["markdown", "html", "pdf", "docx", "txt"] as ExportFormat[]).map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  onClick={() => setExportPreviewFormat(format)}
+                  className={`rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-widest transition ${
+                    exportPreviewFormat === format
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-white/10 text-on-surface-variant hover:text-white"
+                  }`}
+                >
+                  {format}
+                </button>
+              ))}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-white/10 bg-white p-6 text-[#171717]">
+              {exportPreviewFormat === "html" ? (
+                <div
+                  className="prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: activeDoc?.content || "<p></p>" }}
+                />
+              ) : (
+                <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">
+                  {exportPreviewText || "No content yet."}
+                </pre>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button type="button" onClick={() => setExportPreviewFormat(null)} className="emerald-muted-button">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const format = exportPreviewFormat;
+                  setExportPreviewFormat(null);
+                  exportFromServer(format).catch(console.error);
+                }}
+                className="emerald-primary-button"
+              >
+                Download {exportPreviewFormat.toUpperCase()}
+              </button>
             </div>
           </div>
         </div>

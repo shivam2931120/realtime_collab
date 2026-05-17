@@ -5,6 +5,7 @@ import { disconnectSocket } from "../services/socket";
 import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
 import { useDocStore } from "../store/docStore";
+import { usePreferencesStore } from "../store/preferencesStore";
 
 type WorkspaceLayoutProps = {
   pageLabel: string;
@@ -33,9 +34,10 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   
   const clearSession = useAuthStore((state) => state.clearSession);
   const email = useAuthStore((state) => state.user?.email ?? "");
+  const profile = usePreferencesStore((state) => state.profile);
   const clearDocs = useDocStore((state) => state.clearDocs);
 
-  const initials = useMemo(() => email.slice(0, 1).toUpperCase() || "U", [email]);
+  const initials = useMemo(() => (profile.displayName || email).slice(0, 1).toUpperCase() || "U", [email, profile.displayName]);
 
   useEffect(() => {
     setSearchTerm(searchParams.get("q") || "");
@@ -103,8 +105,9 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
           </button>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-white/10 bg-surface-container-high text-xs font-bold uppercase text-white cursor-default"
-            title={email}
+            className="flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-white/10 text-xs font-bold uppercase text-white cursor-default"
+            style={{ backgroundColor: profile.avatarColor }}
+            title={profile.displayName ? `${profile.displayName} · ${email}` : email}
           >
             {initials}
           </button>

@@ -18,6 +18,7 @@ export type AppNotification = {
 export type DocComment = {
   id: string;
   body: string;
+  resolved: boolean;
   createdAt: string;
   author: {
     id: string;
@@ -64,6 +65,7 @@ export type DocItem = {
   }>;
   role: "owner" | "editor" | "viewer";
   folderId?: string | null;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 };

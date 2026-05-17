@@ -5,9 +5,43 @@ import Button from "@mui/material/Button";
 import WorkspaceLayout from "../components/WorkspaceLayout";
 import api from "../services/api";
 import { DocItem, FolderItem, useDocStore } from "../store/docStore";
+import { usePreferencesStore } from "../store/preferencesStore";
 
 const stripContent = (content: string) =>
   content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+const tagHue = (tag: string) =>
+  Array.from(tag).reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+
+const HighlightText = ({ value, query }: { value: string; query: string }) => {
+  if (!query.trim()) {
+    return <>{value}</>;
+  }
+
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = value.split(new RegExp(`(${escaped})`, "ig"));
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={`${part}-${index}`} className="rounded bg-primary/25 px-0.5 text-primary">
+            {part}
+          </mark>
+        ) : (
+          <span key={`${part}-${index}`}>{part}</span>
+        ),
+      )}
+    </>
+  );
+};
+
+const roleBadgeClass = (role: DocItem["role"]) =>
+  role === "owner"
+    ? "bg-primary-container text-on-primary-container"
+    : role === "editor"
+      ? "bg-blue-500/15 text-blue-200"
+      : "bg-white/10 text-on-surface-variant";
 
 type ConfirmState =
   | { type: "doc"; id: string; title: string }
@@ -25,6 +59,9 @@ const DashboardPage = () => {
   const setFolders = useDocStore((state) => state.setFolders);
   const upsertFolder = useDocStore((state) => state.upsertFolder);
   const removeFolder = useDocStore((state) => state.removeFolder);
+  const documentPreferences = usePreferencesStore((state) => state.documentPreferences);
+  const toggleStarred = usePreferencesStore((state) => state.toggleStarred);
+  const togglePinned = usePreferencesStore((state) => state.togglePinned);
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -36,6 +73,9 @@ const DashboardPage = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
+  const [draggingDocId, setDraggingDocId] = useState<string | null>(null);
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   // Delete confirmation state
   const [confirmDelete, setConfirmDelete] = useState<ConfirmState>(null);
@@ -74,16 +114,31 @@ const DashboardPage = () => {
       baseDocs = docs.filter((d) => (d.folderId || null) === currentFolderId);
     }
 
-    if (!query) return baseDocs;
+    if (!query) {
+      return [...baseDocs].sort((first, second) => {
+        const firstPinned = documentPreferences[first.id]?.pinned ? 1 : 0;
+        const secondPinned = documentPreferences[second.id]?.pinned ? 1 : 0;
+        if (firstPinned !== secondPinned) return secondPinned - firstPinned;
+        return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+      });
+    }
 
-    return docs.filter((doc) => {
-      return (
-        doc.title.toLowerCase().includes(query) ||
-        doc.owner.email.toLowerCase().includes(query) ||
-        stripContent(doc.content).toLowerCase().includes(query)
-      );
-    });
-  }, [docs, searchParams, currentFolderId]);
+    return docs
+      .filter((doc) => {
+        return (
+          doc.title.toLowerCase().includes(query) ||
+          doc.owner.email.toLowerCase().includes(query) ||
+          stripContent(doc.content).toLowerCase().includes(query) ||
+          (doc.tags || []).some((tag) => tag.toLowerCase().includes(query))
+        );
+      })
+      .sort((first, second) => {
+        const firstPinned = documentPreferences[first.id]?.pinned ? 1 : 0;
+        const secondPinned = documentPreferences[second.id]?.pinned ? 1 : 0;
+        if (firstPinned !== secondPinned) return secondPinned - firstPinned;
+        return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+      });
+  }, [docs, searchParams, currentFolderId, documentPreferences]);
 
   const filteredFolders = useMemo(() => {
     const query = searchParams.get("q")?.trim().toLowerCase() || "";
@@ -92,6 +147,7 @@ const DashboardPage = () => {
   }, [folders, searchParams, currentFolderId]);
 
   const currentFolder = folders.find((f) => f.id === currentFolderId);
+  const activeQuery = searchParams.get("q")?.trim() || "";
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -172,6 +228,51 @@ const DashboardPage = () => {
     }
   };
 
+  const moveDocumentToFolder = async (documentId: string, folderId: string | null) => {
+    const document = docs.find((item) => item.id === documentId);
+    if (!document || (document.folderId || null) === folderId || document.role === "viewer") {
+      return;
+    }
+
+    const response = await api.put<{ document: DocItem }>(`/docs/${documentId}`, {
+      folder_id: folderId,
+    });
+    upsertDoc(response.data.document);
+  };
+
+  const moveFolderToFolder = async (folderId: string, parentId: string | null) => {
+    const folder = folders.find((item) => item.id === folderId);
+    if (!folder || folder.id === parentId || folder.parent_id === parentId) {
+      return;
+    }
+
+    const response = await api.put<{ folder: FolderItem }>(`/docs/folders/${folderId}`, {
+      parent_id: parentId,
+    });
+    upsertFolder(response.data.folder);
+  };
+
+  const handleDropIntoFolder = async (folderId: string | null) => {
+    try {
+      if (draggingDocId) {
+        await moveDocumentToFolder(draggingDocId, folderId);
+      }
+      if (draggingFolderId) {
+        await moveFolderToFolder(draggingFolderId, folderId);
+      }
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Move failed");
+      } else {
+        setError("Move failed");
+      }
+    } finally {
+      setDraggingDocId(null);
+      setDraggingFolderId(null);
+      setDropTargetId(null);
+    }
+  };
+
   return (
     <WorkspaceLayout
       pageLabel="Editor Workspace"
@@ -215,6 +316,26 @@ const DashboardPage = () => {
         </div>
       )}
 
+      {(draggingDocId || draggingFolderId) && (
+        <button
+          type="button"
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDropTargetId("root");
+          }}
+          onDragLeave={() => setDropTargetId(null)}
+          onDrop={() => handleDropIntoFolder(null)}
+          className={`mb-6 flex w-full items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm font-semibold transition ${
+            dropTargetId === "root"
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-white/10 bg-surface-container-low text-on-surface-variant"
+          }`}
+        >
+          <span className="material-symbols-outlined text-base">drive_file_move</span>
+          Drop here to move to workspace root
+        </button>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {/* Create new document button */}
         <button
@@ -241,11 +362,33 @@ const DashboardPage = () => {
           <>
             {/* Folder cards */}
             {filteredFolders.map((folder) => (
-              <div key={folder.id} className="group relative">
+              <div
+                key={folder.id}
+                className="group relative"
+                draggable
+                onDragStart={() => {
+                  setDraggingFolderId(folder.id);
+                  setDraggingDocId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggingFolderId(null);
+                  setDropTargetId(null);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (draggingDocId || (draggingFolderId && draggingFolderId !== folder.id)) {
+                    setDropTargetId(folder.id);
+                  }
+                }}
+                onDragLeave={() => setDropTargetId(null)}
+                onDrop={() => handleDropIntoFolder(folder.id)}
+              >
                 <button
                   type="button"
                   onClick={() => setCurrentFolderId(folder.id)}
-                  className="w-full flex flex-col items-center justify-center rounded border border-white/5 bg-surface-container-high transition hover:border-primary/50 py-8"
+                  className={`w-full flex flex-col items-center justify-center rounded border bg-surface-container-high transition py-8 ${
+                    dropTargetId === folder.id ? "border-primary shadow-[0_0_0_1px_rgba(16,185,129,0.6)]" : "border-white/5 hover:border-primary/50"
+                  }`}
                 >
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-highest transition group-hover:scale-110">
                     <span className="material-symbols-outlined text-4xl text-[#a3a3a3]">folder</span>
@@ -254,6 +397,7 @@ const DashboardPage = () => {
                   <span className="mt-2 rounded bg-surface-container-low px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">
                     Folder
                   </span>
+                  <span className="mt-2 text-[10px] text-on-surface-variant">Drag files or folders here</span>
                 </button>
                 {/* Delete folder button — always visible on hover */}
                 <button
@@ -272,7 +416,20 @@ const DashboardPage = () => {
 
             {/* Document cards */}
             {filteredDocs.map((document) => (
-              <div key={document.id} className="group relative">
+              <div
+                key={document.id}
+                className="group relative"
+                draggable={document.role !== "viewer"}
+                onDragStart={() => {
+                  if (document.role === "viewer") return;
+                  setDraggingDocId(document.id);
+                  setDraggingFolderId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggingDocId(null);
+                  setDropTargetId(null);
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => navigate(`/editor/${document.id}`)}
@@ -281,20 +438,69 @@ const DashboardPage = () => {
                   <div className="h-32 bg-gradient-to-br from-surface-container-high via-[#23322b] to-surface-container-low opacity-80" />
                   <div className="p-4">
                     <div className="mb-2 flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-bold tracking-tight text-white">{document.title}</h3>
-                      <span className="rounded bg-primary-container px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-primary-container shrink-0">
+                      <h3 className="text-lg font-bold tracking-tight text-white">
+                        <HighlightText value={document.title} query={activeQuery} />
+                      </h3>
+                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest shrink-0 ${roleBadgeClass(document.role)}`}>
                         {document.role}
                       </span>
                     </div>
                     <p className="min-h-[48px] text-sm text-on-surface-variant line-clamp-2">
-                      {stripContent(document.content) || "No content yet. Open the document to start writing."}
+                      <HighlightText
+                        value={stripContent(document.content) || "No content yet. Open the document to start writing."}
+                        query={activeQuery}
+                      />
                     </p>
+                    {(document.tags || []).length ? (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {(document.tags || []).map((tag) => (
+                          <span
+                            key={`${document.id}-${tag}`}
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              backgroundColor: `hsl(${tagHue(tag)} 70% 45% / 0.16)`,
+                              color: `hsl(${tagHue(tag)} 75% 75%)`,
+                            }}
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="mt-4 flex items-center justify-between text-xs text-on-surface-variant">
-                      <span>Owner: {document.owner.email}</span>
+                      <span>Owner: <HighlightText value={document.owner.email} query={activeQuery} /></span>
                       <span>{new Date(document.updatedAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </button>
+                <div className="absolute left-2 top-2 flex gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleStarred(document.id);
+                    }}
+                    title={documentPreferences[document.id]?.starred ? "Remove favorite" : "Favorite"}
+                    className={`flex h-8 w-8 items-center justify-center rounded border border-white/10 ${
+                      documentPreferences[document.id]?.starred ? "bg-yellow-400/20 text-yellow-300" : "bg-black/30 text-white"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[17px]">star</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      togglePinned(document.id);
+                    }}
+                    title={documentPreferences[document.id]?.pinned ? "Unpin" : "Pin"}
+                    className={`flex h-8 w-8 items-center justify-center rounded border border-white/10 ${
+                      documentPreferences[document.id]?.pinned ? "bg-primary/20 text-primary" : "bg-black/30 text-white"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[17px]">push_pin</span>
+                  </button>
+                </div>
                 {/* Delete doc button — only for owner, visible on hover */}
                 {document.role === "owner" && (
                   <button

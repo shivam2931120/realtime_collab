@@ -21,6 +21,8 @@ type PresenceEntry = {
   sessionId: string;
   userId: string;
   email?: string;
+  joinedAt: string;
+  lastSeen: string;
 };
 
 type DocumentRow = {
@@ -120,10 +122,13 @@ export const setupSockets = (io: Server) => {
         // Track session-scoped presence so multiple tabs/devices of same user stay visible.
         const roomMap = ensureRoomMap(roomUsers, documentId);
         socket.data.documentId = documentId;
+        const now = new Date().toISOString();
         roomMap.set(socket.id, {
           sessionId: socket.id,
           userId: activeUser.id,
           email,
+          joinedAt: now,
+          lastSeen: now,
         });
         
         broadcastActiveUsers(documentId);
@@ -179,6 +184,13 @@ export const setupSockets = (io: Server) => {
           return;
         }
 
+        const usersMap = roomUsers.get(payload.documentId);
+        const presence = usersMap?.get(socket.id);
+        if (presence) {
+          presence.lastSeen = new Date().toISOString();
+          usersMap?.set(socket.id, presence);
+        }
+
         socket.to(payload.documentId).emit("cursor-move", {
           sessionId: socket.id,
           userId: activeUser.id,
@@ -188,6 +200,18 @@ export const setupSockets = (io: Server) => {
       } catch {
         // Ignore cursor transport errors to avoid interrupting editing.
       }
+    });
+
+    socket.on("presence-ping", (documentId: string) => {
+      const usersMap = roomUsers.get(documentId);
+      const presence = usersMap?.get(socket.id);
+      if (!presence) {
+        return;
+      }
+
+      presence.lastSeen = new Date().toISOString();
+      usersMap?.set(socket.id, presence);
+      broadcastActiveUsers(documentId);
     });
 
     socket.on("leave-doc", (documentId: string) => {

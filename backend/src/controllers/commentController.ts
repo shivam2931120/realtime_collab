@@ -12,6 +12,7 @@ import { emailFromUserId } from "../utils/userIdentity";
 const shapeComment = (comment: any, authorEmail: string) => ({
   id: comment.id,
   body: comment.content,
+  resolved: Boolean(comment.resolved),
   createdAt: comment.created_at,
   author: {
     id: comment.user_id,
@@ -123,5 +124,43 @@ export const createComment = async (req: AuthRequest, res: Response) => {
       });
     }
     return res.status(500).json({ message: "Comment create nahi hua" });
+  }
+};
+
+export const updateCommentResolution = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const documentId = req.params.id;
+    const commentId = req.params.commentId;
+    const hasAccess = await canAccessDocument(documentId, auth.userId);
+
+    if (!hasAccess) {
+      return res.status(404).json({ message: "Document nahi mila" });
+    }
+
+    const { data: comment, error } = await supabase
+      .from("comments")
+      .update({ resolved: Boolean(req.body.resolved) })
+      .eq("id", commentId)
+      .eq("document_id", documentId)
+      .select("*")
+      .single();
+
+    if (error || !comment) {
+      return res.status(404).json({ message: "Comment nahi mila" });
+    }
+
+    const [shapedComment] = await enrichWithUserEmails([comment]);
+    return res.json({ comment: shapedComment });
+  } catch (error) {
+    console.error("Update comment failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using comments.",
+      });
+    }
+    return res.status(500).json({ message: "Comment update nahi hua" });
   }
 };

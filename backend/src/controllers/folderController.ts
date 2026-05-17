@@ -77,3 +77,69 @@ export const deleteFolder = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: "Folder delete failed" });
   }
 };
+
+export const updateFolder = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const userId = auth.userId;
+
+    const folderId = req.params.folderId;
+    const { data: existing } = await supabase
+      .from("folders")
+      .select("id, owner_id")
+      .eq("id", folderId)
+      .single();
+
+    if (!existing || existing.owner_id !== userId) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+    if (typeof req.body.name === "string") {
+      const name = req.body.name.trim();
+      if (!name) return res.status(400).json({ message: "Folder name required" });
+      updates.name = name;
+    }
+
+    if (req.body.parent_id !== undefined) {
+      const parentId = req.body.parent_id || null;
+      if (parentId === folderId) {
+        return res.status(400).json({ message: "Folder cannot be moved into itself" });
+      }
+
+      if (parentId) {
+        const { data: parent } = await supabase
+          .from("folders")
+          .select("id, owner_id")
+          .eq("id", parentId)
+          .single();
+        if (!parent || parent.owner_id !== userId) {
+          return res.status(400).json({ message: "Target folder not found" });
+        }
+      }
+
+      updates.parent_id = parentId;
+    }
+
+    const { data: folder, error } = await supabase
+      .from("folders")
+      .update(updates)
+      .eq("id", folderId)
+      .select("*")
+      .single();
+
+    if (error || !folder) throw error;
+
+    return res.json({ folder });
+  } catch (error) {
+    console.error("Update folder failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql in Supabase before using folders.",
+      });
+    }
+    return res.status(500).json({ message: "Folder update failed" });
+  }
+};

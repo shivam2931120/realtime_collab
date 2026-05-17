@@ -5,6 +5,29 @@ import WorkspaceLayout from "../components/WorkspaceLayout";
 import api from "../services/api";
 import { SearchResultItem, TagCountItem } from "../types";
 
+const tagHue = (tag: string) =>
+  Array.from(tag).reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+
+const HighlightText = ({ value, query }: { value: string; query: string }) => {
+  if (!query.trim()) return <>{value}</>;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = value.split(new RegExp(`(${escaped})`, "ig"));
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={`${part}-${index}`} className="rounded bg-primary/25 px-0.5 text-primary">
+            {part}
+          </mark>
+        ) : (
+          <span key={`${part}-${index}`}>{part}</span>
+        ),
+      )}
+    </>
+  );
+};
+
 const DiscoverPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -156,16 +179,27 @@ const DiscoverPage = () => {
                   className="w-full rounded border border-white/10 bg-surface-container-high p-4 text-left transition hover:border-primary/40"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-base font-bold text-white">{item.title}</h3>
+                    <h3 className="text-base font-bold text-white">
+                      <HighlightText value={item.title} query={query.trim()} />
+                    </h3>
                     <span className="text-[10px] uppercase tracking-widest text-primary">
                       {new Date(item.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-on-surface-variant">{item.snippet || "No preview available"}</p>
+                  <p className="mt-2 text-sm text-on-surface-variant">
+                    <HighlightText value={item.snippet || "No preview available"} query={query.trim()} />
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.tags.map((tag) => (
-                      <span key={`${item.id}-${tag}`} className="rounded-full bg-primary/10 px-2 py-1 text-[11px] text-primary">
-                        #{tag}
+                      <span
+                        key={`${item.id}-${tag}`}
+                        className="rounded-full px-2 py-1 text-[11px]"
+                        style={{
+                          backgroundColor: `hsl(${tagHue(tag)} 70% 45% / 0.16)`,
+                          color: `hsl(${tagHue(tag)} 75% 75%)`,
+                        }}
+                      >
+                        #<HighlightText value={tag} query={query.trim()} />
                       </span>
                     ))}
                   </div>

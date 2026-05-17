@@ -46,9 +46,39 @@ const shapeDocument = (document: any, userId: string) => {
     })),
     role: getRoleForUser(document, userId),
     folderId: document.folder_id,
+    tags: document.tags || [],
     createdAt: document.created_at,
     updatedAt: document.updated_at,
   };
+};
+
+const attachTagsToDocuments = async (documents: any[]) => {
+  const documentIds = documents.map((doc) => doc.id).filter(Boolean);
+  if (!documentIds.length) return documents;
+
+  try {
+    const { data, error } = await supabase
+      .from("document_tags")
+      .select("document_id, tag")
+      .in("document_id", documentIds);
+
+    if (error) throw error;
+
+    const tagsByDocument = new Map<string, string[]>();
+    (data || []).forEach((row: any) => {
+      const existing = tagsByDocument.get(row.document_id) || [];
+      existing.push(String(row.tag));
+      tagsByDocument.set(row.document_id, existing);
+    });
+
+    return documents.map((doc) => ({
+      ...doc,
+      tags: tagsByDocument.get(doc.id) || [],
+    }));
+  } catch (error) {
+    console.error("Attach document tags failed", error);
+    return documents.map((doc) => ({ ...doc, tags: [] }));
+  }
 };
 
 const enrichWithUserEmails = async (documents: any[]) => {
@@ -201,7 +231,7 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
       .eq("id", docData.id)
       .single();
 
-    const [enrichedDoc] = await enrichWithUserEmails([fullDoc]);
+    const [enrichedDoc] = await attachTagsToDocuments(await enrichWithUserEmails([fullDoc]));
 
     const actorEmail = auth.email;
 
@@ -283,7 +313,7 @@ export const getDocuments = async (req: AuthRequest, res: Response) => {
       new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     );
 
-    const enrichedDocs = await enrichWithUserEmails(combinedDocs);
+    const enrichedDocs = await attachTagsToDocuments(await enrichWithUserEmails(combinedDocs));
 
     return res.json({
       documents: enrichedDocs.map((document) => shapeDocument(document, userId)),
@@ -318,7 +348,7 @@ export const getDocumentById = async (req: AuthRequest, res: Response) => {
     const role = getRoleForUser(doc, userId);
     if (!role) return res.status(403).json({ message: "Forbidden" });
 
-    const [enrichedDoc] = await enrichWithUserEmails([doc]);
+    const [enrichedDoc] = await attachTagsToDocuments(await enrichWithUserEmails([doc]));
 
     await trackDocumentEvent({
       documentId,
@@ -469,7 +499,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     doc.updated_at = updates.updated_at;
     doc.document_collaborators = nextCollaborators;
 
-    const [enrichedDoc] = await enrichWithUserEmails([doc]);
+    const [enrichedDoc] = await attachTagsToDocuments(await enrichWithUserEmails([doc]));
 
     return res.json({
       document: shapeDocument(enrichedDoc, userId),

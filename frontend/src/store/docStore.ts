@@ -19,6 +19,7 @@ export type DocItem = {
   collaborators: Collaborator[];
   role: DocumentRole;
   folderId?: string | null;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 };

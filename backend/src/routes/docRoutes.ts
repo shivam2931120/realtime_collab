@@ -6,8 +6,8 @@ import {
   getDocuments,
   updateDocument,
 } from "../controllers/docController";
-import { createComment, getComments } from "../controllers/commentController";
-import { createFolder, getFolders, deleteFolder } from "../controllers/folderController";
+import { createComment, getComments, updateCommentResolution } from "../controllers/commentController";
+import { createFolder, getFolders, deleteFolder, updateFolder } from "../controllers/folderController";
 import { createVersion, getVersions } from "../controllers/versionController";
 import {
   applyTemplate,
@@ -27,6 +27,7 @@ const router = express.Router();
 
 router.post("/folders", protect, createFolder);
 router.get("/folders", protect, getFolders);
+router.put("/folders/:folderId", protect, updateFolder);
 router.delete("/folders/:folderId", protect, deleteFolder);
 
 router.get("/search", protect, searchDocuments);
@@ -50,6 +51,7 @@ router.delete("/:id", protect, deleteDocument);
 
 router.get("/:id/comments", protect, getComments);
 router.post("/:id/comments", protect, createComment);
+router.put("/:id/comments/:commentId", protect, updateCommentResolution);
 
 router.post("/:id/versions", protect, createVersion);
 router.get("/:id/versions", protect, getVersions);
