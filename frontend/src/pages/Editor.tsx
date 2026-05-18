@@ -1,4 +1,4 @@
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, type Editor as TiptapEditor } from "@tiptap/react";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -61,11 +61,17 @@ const PRESENCE_IDLE_MS = 45_000;
 
 type SaveStatus = "saved" | "saving" | "queued" | "error";
 type ExportFormat = "html" | "markdown" | "pdf" | "docx" | "txt";
+type SearchMatch = {
+  from: number;
+  to: number;
+};
 
 const textColorOptions = [
   { label: "Ink", value: "#131313" },
+  { label: "Slate", value: "#475569" },
   { label: "Green", value: "#047857" },
   { label: "Blue", value: "#2563eb" },
+  { label: "Violet", value: "#7c3aed" },
   { label: "Rose", value: "#be123c" },
 ];
 
@@ -74,6 +80,7 @@ const highlightColorOptions = [
   { label: "Amber", value: "#fde68a" },
   { label: "Sky", value: "#bae6fd" },
   { label: "Pink", value: "#fbcfe8" },
+  { label: "Lavender", value: "#ddd6fe" },
 ];
 
 const buildAvatarUrl = (seedInput: string) =>
@@ -93,6 +100,39 @@ const stripContent = (content: string) =>
 
 const tagHue = (tag: string) =>
   Array.from(tag).reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+
+const collectSearchMatches = (
+  editor: TiptapEditor | null,
+  query: string,
+  matchCase: boolean,
+): SearchMatch[] => {
+  const needle = matchCase ? query : query.toLocaleLowerCase();
+
+  if (!editor || !needle) {
+    return [];
+  }
+
+  const matches: SearchMatch[] = [];
+
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) {
+      return;
+    }
+
+    const source = matchCase ? node.text : node.text.toLocaleLowerCase();
+    let index = source.indexOf(needle);
+
+    while (index !== -1) {
+      matches.push({ from: pos + index, to: pos + index + query.length });
+      index = source.indexOf(needle, index + Math.max(needle.length, 1));
+    }
+  });
+
+  return matches;
+};
+
+const toTitleCase = (value: string) =>
+  value.replace(/\S+/g, (word) => `${word.charAt(0).toLocaleUpperCase()}${word.slice(1).toLocaleLowerCase()}`);
 
 const roleBadgeClass = (role: "owner" | "editor" | "viewer") =>
   role === "owner"
@@ -151,6 +191,13 @@ const EditorPage = () => {
   const [scrollVersion, setScrollVersion] = useState(0);
   const [presenceClock, setPresenceClock] = useState(() => Date.now());
   const [exportPreviewFormat, setExportPreviewFormat] = useState<ExportFormat | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [replaceQuery, setReplaceQuery] = useState("");
+  const [matchCase, setMatchCase] = useState(false);
+  const [activeFindIndex, setActiveFindIndex] = useState(0);
+  const [editorRevision, setEditorRevision] = useState(0);
+  const [editorSelectionRevision, setEditorSelectionRevision] = useState(0);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const retryTimerRef = useRef<number | undefined>(undefined);
   const queuedSaveContentRef = useRef<string | null>(null);
@@ -194,6 +241,17 @@ const EditorPage = () => {
     editorProps: {
       attributes: {
         class: "editorial-editor bg-white px-16 py-16 md:px-24 md:py-24 text-[#131313]",
+      },
+      handleKeyDown: (_view, event) => {
+        const isFindShortcut = (event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f";
+
+        if (isFindShortcut) {
+          event.preventDefault();
+          setFindOpen(true);
+          return true;
+        }
+
+        return false;
       },
     },
     immediatelyRender: false,
@@ -342,6 +400,7 @@ const EditorPage = () => {
     if (editor.getHTML() !== activeDoc.content) {
       applyingRemoteRef.current = true;
       editor.commands.setContent(activeDoc.content || "<p></p>", false);
+      setEditorRevision((current) => current + 1);
       window.setTimeout(() => {
         applyingRemoteRef.current = false;
       }, 0);
@@ -358,6 +417,9 @@ const EditorPage = () => {
     let socket: ReturnType<typeof connectSocket> | null = null;
     let isActive = true;
     let presenceInterval: number | undefined;
+    let handleEditorUpdateRef: (() => void) | null = null;
+    let handleSelectionUpdateRef: (() => void) | null = null;
+    let handleEditorTypingRef: (() => void) | null = null;
 
     const initializeSocket = async () => {
       const token = getAuthToken();
@@ -387,6 +449,7 @@ const EditorPage = () => {
 
         applyingRemoteRef.current = true;
         editor.commands.setContent(nextContent || "<p></p>", false);
+        setEditorRevision((current) => current + 1);
         window.setTimeout(() => {
           applyingRemoteRef.current = false;
         }, 0);
@@ -412,6 +475,7 @@ const EditorPage = () => {
       };
       const handleDocError = (payload: { message: string }) => setError(payload.message);
       const handleEditorUpdate = () => {
+        setEditorRevision((current) => current + 1);
         const latestDoc = docRef.current;
 
         if (!latestDoc || !canEdit || applyingRemoteRef.current) {
@@ -454,8 +518,17 @@ const EditorPage = () => {
         });
       };
 
-      const handleSelectionUpdate = () => emitCursorPosition();
-      const handleEditorTyping = () => emitCursorPosition();
+      const handleSelectionUpdate = () => {
+        setEditorSelectionRevision((current) => current + 1);
+        emitCursorPosition();
+      };
+      const handleEditorTyping = () => {
+        setEditorSelectionRevision((current) => current + 1);
+        emitCursorPosition();
+      };
+      handleEditorUpdateRef = handleEditorUpdate;
+      handleSelectionUpdateRef = handleSelectionUpdate;
+      handleEditorTypingRef = handleEditorTyping;
       presenceInterval = window.setInterval(() => {
         socket?.emit("presence-ping", id);
       }, 15000);
@@ -494,9 +567,9 @@ const EditorPage = () => {
         socket.off("connect_error");
       }
       window.clearInterval(presenceInterval);
-      editor.off("update");
-      editor.off("selectionUpdate");
-      editor.off("transaction");
+      if (handleEditorUpdateRef) editor.off("update", handleEditorUpdateRef);
+      if (handleSelectionUpdateRef) editor.off("selectionUpdate", handleSelectionUpdateRef);
+      if (handleEditorTypingRef) editor.off("transaction", handleEditorTypingRef);
       window.clearTimeout(saveTimerRef.current);
       setRemoteCursors([]);
     };
@@ -618,6 +691,83 @@ const EditorPage = () => {
     const headingLevel = Number(value.replace("h", "")) as 1 | 2 | 3;
     chain.setHeading({ level: headingLevel }).run();
   };
+
+  const findMatches = useMemo(
+    () => collectSearchMatches(editor, findQuery, matchCase),
+    [editor, findQuery, matchCase, editorRevision],
+  );
+  const selectedFindIndex = findMatches.length
+    ? Math.min(activeFindIndex, findMatches.length - 1)
+    : 0;
+
+  const selectFindMatch = (index: number) => {
+    if (!editor || !findMatches.length) {
+      return;
+    }
+
+    const nextIndex = (index + findMatches.length) % findMatches.length;
+    const match = findMatches[nextIndex];
+    setActiveFindIndex(nextIndex);
+    editor.chain().focus().setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
+  };
+
+  const replaceActiveMatch = () => {
+    if (!editor || !findMatches.length) {
+      return;
+    }
+
+    const match = findMatches[selectedFindIndex];
+    editor.chain().focus().setTextSelection({ from: match.from, to: match.to }).insertContent(replaceQuery).run();
+    setActiveFindIndex(Math.min(selectedFindIndex, Math.max(findMatches.length - 2, 0)));
+  };
+
+  const replaceAllMatches = () => {
+    if (!editor || !findMatches.length) {
+      return;
+    }
+
+    const transaction = editor.state.tr;
+    [...findMatches].reverse().forEach((match) => {
+      transaction.insertText(replaceQuery, match.from, match.to);
+    });
+    editor.view.dispatch(transaction.scrollIntoView());
+    setActiveFindIndex(0);
+  };
+
+  const transformSelectionText = (transformer: (value: string) => string) => {
+    if (!editor || editor.state.selection.empty) {
+      return;
+    }
+
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, "\n");
+
+    if (!selectedText) {
+      return;
+    }
+
+    editor.chain().focus().insertContentAt({ from, to }, transformer(selectedText)).run();
+  };
+
+  const insertTimestamp = () => {
+    const timestamp = new Date().toLocaleString();
+    editor?.chain().focus().insertContent(timestamp).run();
+  };
+
+  const removeLink = () => {
+    editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+  };
+
+  useEffect(() => {
+    if (!findMatches.length && activeFindIndex !== 0) {
+      setActiveFindIndex(0);
+      return;
+    }
+
+    if (findMatches.length && activeFindIndex > findMatches.length - 1) {
+      setActiveFindIndex(findMatches.length - 1);
+    }
+  }, [activeFindIndex, findMatches.length]);
 
   const addComment = async () => {
     if (!id || !commentBody.trim()) {
@@ -814,6 +964,8 @@ const EditorPage = () => {
   };
 
   const editorDisabled = !editor || activeDoc?.role === "viewer";
+  const isTableActive = editorSelectionRevision >= 0 && Boolean(editor?.isActive("table"));
+  const canTransformSelection = Boolean(editor && !editor.state.selection.empty);
   const currentBlockStyle = editor?.isActive("heading", { level: 1 })
     ? "h1"
     : editor?.isActive("heading", { level: 2 })
@@ -823,6 +975,20 @@ const EditorPage = () => {
         : "paragraph";
 
   const toolbarItems = [
+    {
+      icon: "undo",
+      action: () => editor?.chain().focus().undo().run(),
+      active: false,
+      label: "Undo",
+      disabled: !editor?.can().undo(),
+    },
+    {
+      icon: "redo",
+      action: () => editor?.chain().focus().redo().run(),
+      active: false,
+      label: "Redo",
+      disabled: !editor?.can().redo(),
+    },
     {
       icon: "format_bold",
       action: () => editor?.chain().focus().toggleBold().run(),
@@ -846,6 +1012,12 @@ const EditorPage = () => {
       action: () => editor?.chain().focus().toggleStrike().run(),
       active: editor?.isActive("strike"),
       label: "Strike",
+    },
+    {
+      icon: "code",
+      action: () => editor?.chain().focus().toggleCode().run(),
+      active: editor?.isActive("code"),
+      label: "Inline code",
     },
     {
       icon: "format_list_bulleted",
@@ -872,6 +1044,13 @@ const EditorPage = () => {
       label: "Link",
     },
     {
+      icon: "link_off",
+      action: removeLink,
+      active: false,
+      label: "Unlink",
+      disabled: !editor?.isActive("link"),
+    },
+    {
       icon: "image",
       action: addImage,
       active: false,
@@ -890,10 +1069,10 @@ const EditorPage = () => {
       label: "Table",
     },
     {
-      icon: "code",
+      icon: "code_blocks",
       action: () => editor?.chain().focus().toggleCodeBlock().run(),
       active: editor?.isActive("codeBlock"),
-      label: "Code",
+      label: "Code block",
     },
     {
       icon: "horizontal_rule",
@@ -901,6 +1080,26 @@ const EditorPage = () => {
       active: false,
       label: "Horizontal rule",
     },
+    {
+      icon: "find_replace",
+      action: () => setFindOpen((current) => !current),
+      active: findOpen,
+      label: "Find and replace",
+      disabled: false,
+    },
+  ];
+  const tableToolItems = [
+    { icon: "keyboard_arrow_left", label: "Column before", action: () => editor?.chain().focus().addColumnBefore().run() },
+    { icon: "keyboard_arrow_right", label: "Column after", action: () => editor?.chain().focus().addColumnAfter().run() },
+    { icon: "view_week", label: "Delete column", action: () => editor?.chain().focus().deleteColumn().run() },
+    { icon: "keyboard_arrow_up", label: "Row above", action: () => editor?.chain().focus().addRowBefore().run() },
+    { icon: "keyboard_arrow_down", label: "Row below", action: () => editor?.chain().focus().addRowAfter().run() },
+    { icon: "table_rows", label: "Delete row", action: () => editor?.chain().focus().deleteRow().run() },
+    { icon: "merge", label: "Merge cells", action: () => editor?.chain().focus().mergeCells().run() },
+    { icon: "call_split", label: "Split cell", action: () => editor?.chain().focus().splitCell().run() },
+    { icon: "title", label: "Header row", action: () => editor?.chain().focus().toggleHeaderRow().run() },
+    { icon: "view_column", label: "Header column", action: () => editor?.chain().focus().toggleHeaderColumn().run() },
+    { icon: "delete", label: "Delete table", action: () => editor?.chain().focus().deleteTable().run() },
   ];
 
   const fileMenuItems = [
@@ -926,19 +1125,35 @@ const EditorPage = () => {
   const editMenuItems = [
     { label: "Undo", action: () => editor?.chain().focus().undo().run() },
     { label: "Redo", action: () => editor?.chain().focus().redo().run() },
+    { label: "Find and replace", action: () => setFindOpen(true) },
+    { label: "Select all", action: () => editor?.chain().focus().selectAll().run() },
     { label: "Paragraph", action: () => editor?.chain().focus().setParagraph().run() },
     { label: "Heading 1", action: () => editor?.chain().focus().toggleHeading({ level: 1 }).run() },
     { label: "Heading 2", action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
     { label: "Heading 3", action: () => editor?.chain().focus().toggleHeading({ level: 3 }).run() },
+    { label: "Bold", action: () => editor?.chain().focus().toggleBold().run() },
+    { label: "Italic", action: () => editor?.chain().focus().toggleItalic().run() },
+    { label: "Underline", action: () => editor?.chain().focus().toggleUnderline().run() },
     { label: "Strike", action: () => editor?.chain().focus().toggleStrike().run() },
+    { label: "Inline code", action: () => editor?.chain().focus().toggleCode().run() },
+    { label: "Remove link", action: removeLink },
     { label: "Task list", action: () => editor?.chain().focus().toggleTaskList().run() },
     { label: "Insert table", action: insertTable },
+    { label: "Add row below", action: () => editor?.chain().focus().addRowAfter().run() },
+    { label: "Add column right", action: () => editor?.chain().focus().addColumnAfter().run() },
+    { label: "Delete row", action: () => editor?.chain().focus().deleteRow().run() },
+    { label: "Delete column", action: () => editor?.chain().focus().deleteColumn().run() },
     { label: "Insert YouTube embed", action: addYoutubeVideo },
+    { label: "Insert timestamp", action: insertTimestamp },
     { label: "Horizontal rule", action: () => editor?.chain().focus().setHorizontalRule().run() },
+    { label: "Uppercase selection", action: () => transformSelectionText((value) => value.toLocaleUpperCase()) },
+    { label: "Lowercase selection", action: () => transformSelectionText((value) => value.toLocaleLowerCase()) },
+    { label: "Title Case selection", action: () => transformSelectionText(toTitleCase) },
     { label: "Clear formatting", action: clearFormatting },
     { label: "Align left", action: () => editor?.chain().focus().setTextAlign("left").run() },
     { label: "Align center", action: () => editor?.chain().focus().setTextAlign("center").run() },
     { label: "Align right", action: () => editor?.chain().focus().setTextAlign("right").run() },
+    { label: "Justify", action: () => editor?.chain().focus().setTextAlign("justify").run() },
   ];
 
   const viewMenuItems = [
@@ -1264,7 +1479,7 @@ const EditorPage = () => {
             onScroll={() => setScrollVersion((current) => current + 1)}
           >
             <div className={`mx-auto flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[800px]"}`}>
-              <div className="sticky top-4 z-40 mx-auto mb-12 flex items-center justify-center">
+              <div className="sticky top-4 z-40 mx-auto mb-12 flex flex-col items-center justify-center gap-2">
                 <div className="editorial-editor-toolbar flex max-w-full flex-wrap items-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-4 py-2 shadow-2xl backdrop-blur-xl">
                   <select
                     value={currentBlockStyle}
@@ -1283,17 +1498,19 @@ const EditorPage = () => {
                       <button
                         type="button"
                         title={item.label}
-                        disabled={editorDisabled}
+                        disabled={editorDisabled || Boolean(item.disabled)}
                         onClick={item.action}
                         className={item.active ? "active" : ""}
                       >
                         <span className="material-symbols-outlined text-lg">{item.icon}</span>
                       </button>
-                      {index === 3 || index === 6 || index === 10 ? <div className="mx-2 h-4 w-px bg-white/10" /> : null}
+                      {index === 1 || index === 6 || index === 9 || index === 11 || index === 14 ? (
+                        <div className="mx-2 h-4 w-px bg-white/10" />
+                      ) : null}
                     </div>
                   ))}
                   <div className="mx-2 h-4 w-px bg-white/10" />
-                  {(["left", "center", "right"] as const).map((alignment) => (
+                  {(["left", "center", "right", "justify"] as const).map((alignment) => (
                     <button
                       key={alignment}
                       type="button"
@@ -1303,7 +1520,13 @@ const EditorPage = () => {
                       className={editor?.isActive({ textAlign: alignment }) ? "active" : ""}
                     >
                       <span className="material-symbols-outlined text-lg">
-                        {alignment === "left" ? "format_align_left" : alignment === "center" ? "format_align_center" : "format_align_right"}
+                        {alignment === "left"
+                          ? "format_align_left"
+                          : alignment === "center"
+                            ? "format_align_center"
+                            : alignment === "right"
+                              ? "format_align_right"
+                              : "format_align_justify"}
                       </span>
                     </button>
                   ))}
@@ -1339,6 +1562,15 @@ const EditorPage = () => {
                         title={`${color.label} text`}
                       />
                     ))}
+                    <button
+                      type="button"
+                      disabled={editorDisabled}
+                      onClick={() => editor?.chain().focus().unsetColor().removeEmptyTextStyle().run()}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-white/20 !p-0 text-[10px] font-bold text-white"
+                      title="Clear text color"
+                    >
+                      ×
+                    </button>
                   </div>
                   <div className="flex items-center gap-1" title="Highlight color">
                     {highlightColorOptions.map((color) => (
@@ -1354,8 +1586,154 @@ const EditorPage = () => {
                         title={`${color.label} highlight`}
                       />
                     ))}
+                    <button
+                      type="button"
+                      disabled={editorDisabled}
+                      onClick={() => editor?.chain().focus().unsetHighlight().run()}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-white/20 !p-0 text-[10px] font-bold text-white"
+                      title="Clear highlight"
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
+
+                {isTableActive ? (
+                  <div className="editorial-editor-toolbar flex max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-3 py-2 shadow-xl backdrop-blur-xl">
+                    {tableToolItems.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        title={item.label}
+                        disabled={editorDisabled}
+                        onClick={item.action}
+                      >
+                        <span className="material-symbols-outlined text-lg">{item.icon}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                {findOpen ? (
+                  <div className="flex max-w-full flex-wrap items-center justify-center gap-2 rounded border border-white/10 bg-surface-container-highest/95 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-xl">
+                    <div className="flex items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1">
+                      <span className="material-symbols-outlined text-base text-on-surface-variant">search</span>
+                      <input
+                        value={findQuery}
+                        onChange={(event) => setFindQuery(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            selectFindMatch(selectedFindIndex + (event.shiftKey ? -1 : 1));
+                          }
+                        }}
+                        className="w-36 border-0 bg-transparent text-xs text-white outline-none placeholder:text-on-surface-variant"
+                        placeholder="Find"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1">
+                      <span className="material-symbols-outlined text-base text-on-surface-variant">edit</span>
+                      <input
+                        value={replaceQuery}
+                        onChange={(event) => setReplaceQuery(event.target.value)}
+                        className="w-36 border-0 bg-transparent text-xs text-white outline-none placeholder:text-on-surface-variant"
+                        placeholder="Replace"
+                      />
+                    </div>
+                    <span className="min-w-[72px] text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {findQuery ? `${findMatches.length ? selectedFindIndex + 1 : 0}/${findMatches.length}` : "0/0"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => selectFindMatch(selectedFindIndex - 1)}
+                      disabled={!findMatches.length}
+                      className="rounded border border-white/10 px-2 py-1 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Previous match"
+                    >
+                      <span className="material-symbols-outlined text-base">keyboard_arrow_up</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectFindMatch(selectedFindIndex + 1)}
+                      disabled={!findMatches.length}
+                      className="rounded border border-white/10 px-2 py-1 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Next match"
+                    >
+                      <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
+                    </button>
+                    <label className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      <input
+                        type="checkbox"
+                        checked={matchCase}
+                        onChange={(event) => setMatchCase(event.target.checked)}
+                        className="h-3 w-3 accent-primary"
+                      />
+                      Aa
+                    </label>
+                    <button
+                      type="button"
+                      onClick={replaceActiveMatch}
+                      disabled={editorDisabled || !findMatches.length}
+                      className="rounded border border-white/10 px-2 py-1 font-semibold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={replaceAllMatches}
+                      disabled={editorDisabled || !findMatches.length}
+                      className="rounded border border-primary/40 bg-primary/10 px-2 py-1 font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Replace all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFindOpen(false)}
+                      className="rounded p-1 text-on-surface-variant transition hover:bg-white/10 hover:text-white"
+                      title="Close find and replace"
+                    >
+                      <span className="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+                ) : null}
+
+                {canTransformSelection ? (
+                  <div className="flex flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-xl">
+                    <span className="px-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Selection</span>
+                    <button
+                      type="button"
+                      disabled={editorDisabled}
+                      onClick={() => transformSelectionText((value) => value.toLocaleUpperCase())}
+                      className="rounded px-2 py-1 font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      AA
+                    </button>
+                    <button
+                      type="button"
+                      disabled={editorDisabled}
+                      onClick={() => transformSelectionText((value) => value.toLocaleLowerCase())}
+                      className="rounded px-2 py-1 font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      aa
+                    </button>
+                    <button
+                      type="button"
+                      disabled={editorDisabled}
+                      onClick={() => transformSelectionText(toTitleCase)}
+                      className="rounded px-2 py-1 font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Aa
+                    </button>
+                    <button
+                      type="button"
+                      disabled={editorDisabled}
+                      onClick={insertTimestamp}
+                      className="rounded px-2 py-1 font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Time
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               <div ref={editorSurfaceRef} className="relative overflow-visible rounded-lg bg-white shadow-2xl">

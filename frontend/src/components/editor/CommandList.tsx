@@ -50,16 +50,20 @@ const CommandList = forwardRef((props: any, ref) => {
   }
 
   return (
-    <div className="flex w-64 flex-col gap-1 rounded-xl border border-white/5 bg-surface-container-highest p-2 shadow-2xl text-on-surface">
+    <div className="flex w-80 flex-col gap-1 rounded-xl border border-white/5 bg-surface-container-highest p-2 shadow-2xl text-on-surface">
       {props.items.map((item: any, index: number) => (
         <button
-          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-all ${
+          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-all ${
             index === selectedIndex ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface hover:text-white'
           }`}
           key={index}
           onClick={() => selectItem(index)}
         >
-          {item.title}
+          <span className="material-symbols-outlined text-lg">{item.icon || 'notes'}</span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{item.title}</span>
+            {item.description ? <span className="block truncate text-[11px] opacity-75">{item.description}</span> : null}
+          </span>
         </button>
       ))}
     </div>
