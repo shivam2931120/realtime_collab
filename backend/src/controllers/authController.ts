@@ -8,10 +8,13 @@ import {
   assertStrongPassword,
   consumePasswordResetToken,
   createPasswordResetToken,
+  createFallbackAuthUser,
   createRefreshSession,
+  findFallbackAuthUserByEmail,
   hashPassword,
   revokeRefreshToken,
   rotateRefreshSession,
+  updateFallbackAuthPassword,
   verifyPassword,
 } from "../utils/passwordAuth";
 import { normalizeEmail } from "../utils/userIdentity";
@@ -65,6 +68,16 @@ export const register = async (req: Request, res: Response) => {
       .eq("email", user.email)
       .maybeSingle();
 
+    if (lookupError && isMissingTableError(lookupError)) {
+      const existingFallbackUser = await findFallbackAuthUserByEmail(user.email);
+      if (existingFallbackUser) {
+        return res.status(409).json({ message: "Account already exists. Sign in instead." });
+      }
+
+      await createFallbackAuthUser(user, hashPassword(password));
+      return res.status(201).json(await sessionPayload(user));
+    }
+
     if (lookupError) {
       throw lookupError;
     }
@@ -103,6 +116,16 @@ export const login = async (req: Request, res: Response) => {
       .select("id,email,password_hash")
       .eq("email", email)
       .single();
+
+    if (error && isMissingTableError(error)) {
+      const fallbackUser = await findFallbackAuthUserByEmail(email);
+      if (!fallbackUser || !verifyPassword(password, fallbackUser.password_hash)) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const user = buildAuthUser(fallbackUser.email);
+      return res.json(await sessionPayload(user));
+    }
 
     if (error || !userRow || !verifyPassword(password, userRow.password_hash)) {
       return res.status(401).json({ message: "Invalid email or password" });
@@ -156,6 +179,19 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       .eq("email", email)
       .maybeSingle();
 
+    if (error && isMissingTableError(error)) {
+      const fallbackUser = await findFallbackAuthUserByEmail(email);
+      if (fallbackUser) {
+        const resetToken = await createPasswordResetToken(fallbackUser.id);
+        const resetUrl = `${getResetBaseUrl()}/reset-password?token=${encodeURIComponent(resetToken)}`;
+        await sendPasswordResetEmail({ to: fallbackUser.email, resetUrl }).catch((mailError) =>
+          console.error("Password reset email failed", mailError),
+        );
+      }
+
+      return res.json({ message: "If an account exists, password reset instructions have been sent." });
+    }
+
     if (error) {
       throw error;
     }
@@ -189,6 +225,11 @@ export const confirmPasswordReset = async (req: Request, res: Response) => {
       .from("auth_users")
       .update({ password_hash: hashPassword(password), updated_at: new Date().toISOString() })
       .eq("id", userId);
+
+    if (error && isMissingTableError(error)) {
+      await updateFallbackAuthPassword(userId, hashPassword(password));
+      return res.json({ success: true });
+    }
 
     if (error) {
       throw error;
