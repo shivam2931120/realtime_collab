@@ -1,6 +1,6 @@
 import axios from "axios";
 import { FormEvent, ReactNode, Suspense, lazy, useEffect, useState } from "react";
-import { Navigate, Route, Routes, Link, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, Link, useLocation, useSearchParams } from "react-router-dom";
 import api from "./services/api";
 import { useAuthStore } from "./store/authStore";
 import { useDocStore } from "./store/docStore";
@@ -17,6 +17,7 @@ const AnalyticsPage = lazy(() => import("./pages/Analytics"));
 
 type SessionResponse = {
   token: string;
+  refreshToken?: string;
   user: {
     id: string;
     email: string;
@@ -26,8 +27,10 @@ type SessionResponse = {
 const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
   const setSession = useAuthStore((state) => state.setSession);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [resetSent, setResetSent] = useState(false);
 
   const submitLabel = mode === "register" ? "Create account" : "Sign in";
   const helperCopy =
@@ -39,13 +42,55 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
     setError("");
 
     try {
-      const response = await api.post<SessionResponse>("/auth/session", { email });
-      setSession(response.data.token, response.data.user);
+      const response = await api.post<SessionResponse>(mode === "register" ? "/auth/register" : "/auth/login", {
+        email,
+        password,
+      });
+      setSession(response.data.token, response.data.user, response.data.refreshToken);
     } catch (requestError) {
       if (axios.isAxiosError(requestError)) {
         setError(requestError.response?.data?.message || "Authentication failed");
       } else {
         setError("Authentication failed");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDemoSession = async () => {
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await api.post<SessionResponse>("/auth/session", { email: "demo@example.com" });
+      setSession(response.data.token, response.data.user);
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Demo sign-in failed");
+      } else {
+        setError("Demo sign-in failed");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const requestReset = async () => {
+    if (!email.trim()) {
+      setError("Enter your email first.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.post("/auth/password-reset/request", { email });
+      setResetSent(true);
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Reset request failed");
+      } else {
+        setError("Reset request failed");
       }
     } finally {
       setSubmitting(false);
@@ -72,11 +117,35 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
               placeholder="you@company.com"
             />
           </div>
+          <div>
+            <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="w-full rounded border border-white/10 bg-surface px-3 py-2 text-sm text-white outline-none ring-primary/50 transition focus:ring-2"
+              placeholder="At least 8 characters"
+            />
+          </div>
           {error ? <p className="text-sm text-error">{error}</p> : null}
+          {resetSent ? <p className="text-sm text-primary">Reset instructions sent if the account exists.</p> : null}
           <button type="submit" disabled={submitting} className="emerald-primary-button w-full justify-center">
             {submitting ? "Please wait..." : submitLabel}
           </button>
         </form>
+
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={handleDemoSession}
+          className="emerald-muted-button mt-3 w-full justify-center"
+        >
+          Continue with demo
+        </button>
 
         <p className="mt-6 text-sm text-on-surface-variant">
           {mode === "register" ? (
@@ -95,6 +164,73 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
             </>
           )}
         </p>
+        {mode === "login" ? (
+          <button
+            type="button"
+            onClick={requestReset}
+            className="mt-3 text-sm text-primary hover:underline"
+            disabled={submitting}
+          >
+            Forgot password?
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+const ResetPasswordScreen = () => {
+  const [searchParams] = useSearchParams();
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const token = searchParams.get("token") || "";
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setStatus("");
+
+    try {
+      await api.post("/auth/password-reset/confirm", { token, password });
+      setStatus("Password updated. You can sign in now.");
+      setPassword("");
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Password reset failed");
+      } else {
+        setError("Password reset failed");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+      <div className="w-full max-w-md rounded border border-white/10 bg-surface-container p-8 shadow-2xl">
+        <h1 className="text-2xl font-bold text-white">Reset password</h1>
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+          <input
+            type="password"
+            required
+            minLength={8}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="w-full rounded border border-white/10 bg-surface px-3 py-2 text-sm text-white outline-none ring-primary/50 transition focus:ring-2"
+            placeholder="New password"
+          />
+          {error ? <p className="text-sm text-error">{error}</p> : null}
+          {status ? <p className="text-sm text-primary">{status}</p> : null}
+          <button type="submit" disabled={submitting || !token} className="emerald-primary-button w-full justify-center">
+            {submitting ? "Saving..." : "Update password"}
+          </button>
+        </form>
+        <Link className="mt-5 inline-block text-sm text-primary hover:underline" to="/login">
+          Back to sign in
+        </Link>
       </div>
     </div>
   );
@@ -121,6 +257,8 @@ const App = () => {
   const hydrate = useAuthStore((state) => state.hydrate);
   const hydrated = useAuthStore((state) => state.hydrated);
   const token = useAuthStore((state) => state.token);
+  const refreshToken = useAuthStore((state) => state.refreshToken);
+  const setSession = useAuthStore((state) => state.setSession);
   const clearSession = useAuthStore((state) => state.clearSession);
   const clearDocs = useDocStore((state) => state.clearDocs);
 
@@ -131,10 +269,23 @@ const App = () => {
   useEffect(() => {
     if (!hydrated || !token) return;
     api.get("/auth/me").catch(() => {
-      clearSession();
-      clearDocs();
+      if (!refreshToken) {
+        clearSession();
+        clearDocs();
+        return;
+      }
+
+      api
+        .post<SessionResponse>("/auth/refresh", { refreshToken })
+        .then((response) => {
+          setSession(response.data.token, response.data.user, response.data.refreshToken);
+        })
+        .catch(() => {
+          clearSession();
+          clearDocs();
+        });
     });
-  }, [hydrated, token, clearSession, clearDocs]);
+  }, [hydrated, token, refreshToken, setSession, clearSession, clearDocs]);
 
   if (!hydrated) {
     return (
@@ -157,6 +308,7 @@ const App = () => {
         <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
         <Route path="/login" element={<AuthScreen mode="login" />} />
         <Route path="/register" element={<AuthScreen mode="register" />} />
+        <Route path="/reset-password" element={<ResetPasswordScreen />} />
         <Route
           path="/dashboard"
           element={

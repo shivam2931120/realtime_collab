@@ -1,6 +1,6 @@
 export type AppNotification = {
   id: string;
-  type: "document_shared" | "document_updated" | "document_created";
+  type: "document_shared" | "document_updated" | "document_created" | "comment_mention";
   title: string;
   message: string;
   isRead: boolean;
@@ -19,6 +19,11 @@ export type DocComment = {
   id: string;
   body: string;
   resolved: boolean;
+  position?: {
+    from?: number;
+    to?: number;
+    text?: string;
+  } | null;
   createdAt: string;
   author: {
     id: string;

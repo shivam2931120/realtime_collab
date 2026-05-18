@@ -8,7 +8,7 @@ import {
 } from "../controllers/docController";
 import { createComment, getComments, updateCommentResolution } from "../controllers/commentController";
 import { createFolder, getFolders, deleteFolder, updateFolder } from "../controllers/folderController";
-import { createVersion, getVersions } from "../controllers/versionController";
+import { createVersion, getVersions, restoreVersion } from "../controllers/versionController";
 import {
   applyTemplate,
   createTemplate,
@@ -55,5 +55,6 @@ router.put("/:id/comments/:commentId", protect, updateCommentResolution);
 
 router.post("/:id/versions", protect, createVersion);
 router.get("/:id/versions", protect, getVersions);
+router.post("/:id/versions/:versionId/restore", protect, restoreVersion);
 
 export default router;

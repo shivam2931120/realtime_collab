@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import NotificationMenu from "./NotificationMenu";
+import api from "../services/api";
 import { disconnectSocket } from "../services/socket";
 import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
@@ -33,6 +34,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   const setSearchTerm = useUiStore((state) => state.setSearchTerm);
   
   const clearSession = useAuthStore((state) => state.clearSession);
+  const refreshToken = useAuthStore((state) => state.refreshToken);
   const email = useAuthStore((state) => state.user?.email ?? "");
   const profile = usePreferencesStore((state) => state.profile);
   const sidebarCollapsed = usePreferencesStore((state) => state.sidebarCollapsed);
@@ -46,6 +48,9 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   }, [searchParams]);
 
   const handleLogout = async () => {
+    if (refreshToken) {
+      await api.post("/auth/logout", { refreshToken }).catch(() => undefined);
+    }
     disconnectSocket();
     clearSession();
     clearDocs();

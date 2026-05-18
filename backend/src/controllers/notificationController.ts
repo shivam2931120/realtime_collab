@@ -7,7 +7,12 @@ import { emailFromUserId } from "../utils/userIdentity";
 const shapeNotification = (notification: any, actorEmail: string, documentTitle: string) => ({
   id: notification.id,
   type: notification.type,
-  title: notification.type === "document_shared" ? "Document shared" : "Notification",
+  title:
+    notification.type === "document_shared"
+      ? "Document shared"
+      : notification.type === "comment_mention"
+        ? "Mentioned in comment"
+        : "Notification",
   message: notification.message,
   isRead: notification.read,
   createdAt: notification.created_at,

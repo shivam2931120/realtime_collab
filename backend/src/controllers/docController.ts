@@ -5,6 +5,7 @@ import { trackDocumentEvent } from "../utils/analytics";
 import { isMissingTableError } from "../utils/dbErrors";
 import { invalidateCachePrefix, publishEvent } from "../utils/redis";
 import { emailFromUserId, isValidEmail, normalizeEmail, userIdFromEmail } from "../utils/userIdentity";
+import { maybeCreateAutomaticVersion } from "../utils/documentVersions";
 
 // For notifications, we insert into Supabase directly instead of Mongoose.
 
@@ -76,7 +77,9 @@ const attachTagsToDocuments = async (documents: any[]) => {
       tags: tagsByDocument.get(doc.id) || [],
     }));
   } catch (error) {
-    console.error("Attach document tags failed", error);
+    if (!isMissingTableError(error)) {
+      console.error("Attach document tags failed", error);
+    }
     return documents.map((doc) => ({ ...doc, tags: [] }));
   }
 };
@@ -306,8 +309,8 @@ export const getDocuments = async (req: AuthRequest, res: Response) => {
 
     // Merge and deduplicate
     const allDocsMap = new Map();
-    ownedDocs?.forEach(d => allDocsMap.set(d.id, d));
-    collabDocs?.forEach(d => allDocsMap.set(d.id, d));
+    ownedDocs?.filter((d) => !d.deleted_at).forEach(d => allDocsMap.set(d.id, d));
+    collabDocs?.filter((d) => !d.deleted_at).forEach(d => allDocsMap.set(d.id, d));
     
     const combinedDocs = Array.from(allDocsMap.values()).sort((a, b) => 
       new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
@@ -343,7 +346,7 @@ export const getDocumentById = async (req: AuthRequest, res: Response) => {
       .eq("id", documentId)
       .single();
 
-    if (!doc) return res.status(404).json({ message: "Document nahi mila" });
+    if (!doc || doc.deleted_at) return res.status(404).json({ message: "Document nahi mila" });
 
     const role = getRoleForUser(doc, userId);
     if (!role) return res.status(403).json({ message: "Forbidden" });
@@ -384,7 +387,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
       .eq("id", documentId)
       .single();
 
-    if (!doc) return res.status(404).json({ message: "Document nahi mila" });
+    if (!doc || doc.deleted_at) return res.status(404).json({ message: "Document nahi mila" });
 
     const currentRole = getRoleForUser(doc, userId);
     if (!currentRole) return res.status(403).json({ message: "Forbidden" });
@@ -407,6 +410,11 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
       updates.title = req.body.title.trim();
     }
     if (wantsContentUpdate) {
+      await maybeCreateAutomaticVersion({
+        documentId,
+        content: doc.content || "",
+        userId,
+      }).catch((versionError) => console.error("Automatic version snapshot failed", versionError));
       updates.content = req.body.content;
     }
     if (wantsFolderUpdate) {
@@ -532,8 +540,20 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
     if (!doc) return res.status(404).json({ message: "Document nahi mila" });
     if (doc.owner_id !== userId) return res.status(403).json({ message: "Sirf owner delete kar sakta hai" });
 
-    const { error } = await supabase.from("documents").delete().eq("id", documentId);
-    if (error) throw error;
+    const { error } = await supabase
+      .from("documents")
+      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", documentId);
+
+    if (error) {
+      const missingDeletedColumn = error.code === "42703" || /deleted_at/i.test(String(error.message || ""));
+      if (!missingDeletedColumn) {
+        throw error;
+      }
+
+      const { error: hardDeleteError } = await supabase.from("documents").delete().eq("id", documentId);
+      if (hardDeleteError) throw hardDeleteError;
+    }
 
     await publishEvent("docs:mutations", {
       action: "delete",

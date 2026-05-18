@@ -774,12 +774,36 @@ const EditorPage = () => {
       return;
     }
 
+    const selection = editor?.state.selection;
+    const selectedText =
+      editor && selection && !selection.empty
+        ? editor.state.doc.textBetween(selection.from, selection.to, " ").slice(0, 180)
+        : "";
+
     const response = await api.post<{ comment: DocComment }>(`/docs/${id}/comments`, {
       body: commentBody.trim(),
+      position: selection
+        ? {
+            from: selection.from,
+            to: selection.to,
+            text: selectedText,
+          }
+        : null,
     });
 
     setComments((current) => [response.data.comment, ...current]);
     setCommentBody("");
+  };
+
+  const focusCommentPosition = (comment: DocComment) => {
+    if (!editor || !comment.position?.from) {
+      return;
+    }
+
+    const maxPos = Math.max(1, editor.state.doc.content.size);
+    const from = clampCursorPosition(comment.position.from, maxPos);
+    const to = clampCursorPosition(comment.position.to || comment.position.from, maxPos);
+    editor.chain().focus().setTextSelection({ from: Math.min(from, to), to: Math.max(from, to) }).scrollIntoView().run();
   };
 
   const toggleCommentResolved = async (comment: DocComment) => {
@@ -879,6 +903,30 @@ const EditorPage = () => {
       console.error(e);
     } finally {
       setCreatingVersion(false);
+    }
+  };
+
+  const restoreVersion = async (version: any) => {
+    if (!id || !editor) {
+      return;
+    }
+
+    try {
+      const response = await api.post<{ document: any }>(`/docs/${id}/versions/${version.id}/restore`);
+      const restoredContent = response.data.document.content || version.content || "<p></p>";
+      editor.commands.setContent(restoredContent, false);
+      if (activeDoc) {
+        const nextDoc = { ...activeDoc, content: restoredContent, updatedAt: new Date().toISOString() };
+        setActiveDoc(nextDoc);
+        upsertDoc(nextDoc);
+      }
+      await loadVersions();
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Version restore failed");
+      } else {
+        setError("Version restore failed");
+      }
     }
   };
 
@@ -1809,7 +1857,7 @@ const EditorPage = () => {
                 <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
                 <input
                   className="flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
-                  placeholder="Type a comment..."
+                  placeholder="Type a comment or @mention an email..."
                   value={commentBody}
                   onChange={(event) => setCommentBody(event.target.value)}
                   type="text"
@@ -1838,6 +1886,15 @@ const EditorPage = () => {
                     </div>
                   </div>
                   <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
+                  {comment.position?.text ? (
+                    <button
+                      type="button"
+                      onClick={() => focusCommentPosition(comment)}
+                      className="w-full rounded border border-white/10 bg-surface-container-high px-2 py-1 text-left text-[11px] text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
+                    >
+                      Linked: "{comment.position.text}"
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => toggleCommentResolved(comment).catch(console.error)}
@@ -1880,7 +1937,7 @@ const EditorPage = () => {
                 {versions.map((version) => (
                   <div key={version.id} className="cursor-pointer space-y-2 rounded-lg border border-white/5 bg-surface-container p-4 transition-colors hover:border-primary/50" onClick={() => {
                       if (window.confirm("Restore this version? This will replace your current content.")) {
-                        editor?.commands.setContent(version.content);
+                        restoreVersion(version).catch(console.error);
                       }
                     }}>
                     <div className="flex items-center justify-between">

@@ -20,6 +20,7 @@ type AccessibleDocument = {
   owner_id: string;
   updated_at: string;
   created_at: string;
+  deleted_at?: string | null;
 };
 
 const normalizeTags = (raw: unknown) => {
@@ -107,8 +108,8 @@ const getAccessibleDocuments = async (userId: string): Promise<AccessibleDocumen
   }
 
   const map = new Map<string, AccessibleDocument>();
-  (ownedDocs || []).forEach((doc: any) => map.set(doc.id, doc));
-  collabDocs.forEach((doc) => map.set(doc.id, doc));
+  (ownedDocs || []).filter((doc: any) => !doc.deleted_at).forEach((doc: any) => map.set(doc.id, doc));
+  collabDocs.filter((doc) => !doc.deleted_at).forEach((doc) => map.set(doc.id, doc));
 
   return [...map.values()].sort(
     (first, second) => new Date(second.updated_at).getTime() - new Date(first.updated_at).getTime(),

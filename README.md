@@ -87,14 +87,22 @@ Frontend runs on `http://localhost:5173`.
 
 ## Auth flow
 
-- Use `/login` or `/register`.
-- Enter an email to create a signed session token.
+- Use `/login` or `/register` for email/password authentication.
+- Password auth issues a short-lived signed access token plus a refresh token.
+- `/reset-password` completes password reset links delivered by SMTP.
+- `Continue with demo` uses `/api/auth/session` for evaluator access without creating an account.
 - Token is stored client-side and sent as `Authorization: Bearer <token>`.
 - Backend verifies token signature and derives a stable user ID from email.
 
 ## API endpoints
 
 - `POST /api/auth/session`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/password-reset/confirm`
 - `GET /api/auth/me`
 - `POST /api/docs/folders`
 - `GET /api/docs/folders`
@@ -108,6 +116,7 @@ Frontend runs on `http://localhost:5173`.
 - `POST /api/docs/:id/comments`
 - `POST /api/docs/:id/versions`
 - `GET /api/docs/:id/versions`
+- `POST /api/docs/:id/versions/:versionId/restore`
 - `GET /api/docs/search`
 - `GET /api/docs/tags`
 - `GET /api/docs/:id/tags`
@@ -121,6 +130,7 @@ Frontend runs on `http://localhost:5173`.
 - `GET /api/notifications`
 - `PUT /api/notifications/read-all`
 - `PUT /api/notifications/:id/read`
+- `GET /metrics`
 
 ## Realtime socket events
 

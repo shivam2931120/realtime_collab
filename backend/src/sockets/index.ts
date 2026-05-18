@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { supabase } from "../config/supabase";
 import { verifyAuthToken } from "../utils/authToken";
+import { maybeCreateAutomaticVersion } from "../utils/documentVersions";
 
 type ActiveSocketUser = {
   id: string;
@@ -155,6 +156,12 @@ export const setupSockets = (io: Server) => {
         if (role === "viewer" || !role) {
           return;
         }
+
+        await maybeCreateAutomaticVersion({
+          documentId: payload.documentId,
+          content: (doc as any).content || "",
+          userId: activeUser.id,
+        }).catch((versionError) => console.error("Automatic socket snapshot failed", versionError));
 
         await supabase
           .from("documents")

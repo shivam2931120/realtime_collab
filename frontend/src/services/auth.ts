@@ -5,6 +5,7 @@ export type SessionUser = {
 
 type SessionPayload = {
   token: string;
+  refreshToken?: string;
   user: SessionUser;
 };
 
@@ -26,6 +27,7 @@ const safeParse = (value: string | null): SessionPayload | null => {
 export const getStoredSession = () => safeParse(localStorage.getItem(STORAGE_KEY));
 
 export const getAuthToken = () => getStoredSession()?.token || null;
+export const getRefreshToken = () => getStoredSession()?.refreshToken || null;
 
 export const saveSession = (payload: SessionPayload) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));

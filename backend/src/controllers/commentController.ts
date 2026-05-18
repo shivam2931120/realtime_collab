@@ -3,7 +3,8 @@ import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
 import { trackDocumentEvent } from "../utils/analytics";
 import { isMissingTableError } from "../utils/dbErrors";
-import { emailFromUserId } from "../utils/userIdentity";
+import { emailFromUserId, isValidEmail, normalizeEmail, userIdFromEmail } from "../utils/userIdentity";
+import { sendMail } from "../utils/mailer";
 
 // Our SQL table for comments is:
 // id, document_id, user_id, content, resolved, position, created_at
@@ -13,6 +14,7 @@ const shapeComment = (comment: any, authorEmail: string) => ({
   id: comment.id,
   body: comment.content,
   resolved: Boolean(comment.resolved),
+  position: comment.position || null,
   createdAt: comment.created_at,
   author: {
     id: comment.user_id,
@@ -36,6 +38,74 @@ const canAccessDocument = async (documentId: string, userId: string) => {
   
   const isCollab = doc.document_collaborators?.some((c: any) => c.user_id === userId);
   return !!isCollab;
+};
+
+const extractMentionEmails = (body: string) => {
+  const matches = body.match(/@([^\s@<>()[\],;:]+@[^\s@<>()[\],;:]+\.[^\s@<>()[\],;:]+)/g) || [];
+  return [
+    ...new Set(
+      matches
+        .map((value) => normalizeEmail(value.slice(1)))
+        .filter((email) => isValidEmail(email)),
+    ),
+  ];
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const getDocumentTitle = async (documentId: string) => {
+  const { data: doc } = await supabase.from("documents").select("title").eq("id", documentId).single();
+  return doc?.title || "Untitled document";
+};
+
+const createMentionNotifications = async ({
+  documentId,
+  documentTitle,
+  commentBody,
+  actorId,
+  actorEmail,
+}: {
+  documentId: string;
+  documentTitle: string;
+  commentBody: string;
+  actorId: string;
+  actorEmail: string;
+}) => {
+  const mentionedEmails = extractMentionEmails(commentBody).filter(
+    (email) => userIdFromEmail(email) !== actorId,
+  );
+
+  if (!mentionedEmails.length) {
+    return;
+  }
+
+  const documentUrl = `${String(process.env.CLIENT_URL || "http://localhost:5173").replace(/\/+$/, "")}/editor/${documentId}`;
+  const notifications = mentionedEmails.map((email) => ({
+    recipient_id: userIdFromEmail(email),
+    sender_id: actorId,
+    document_id: documentId,
+    type: "comment_mention",
+    message: `${actorEmail} mentioned you in "${documentTitle}".`,
+  }));
+
+  await supabase.from("notifications").insert(notifications);
+
+  await Promise.all(
+    mentionedEmails.map((email) =>
+      sendMail({
+        to: email,
+        subject: `Mentioned in ${documentTitle}`,
+        text: `${actorEmail} mentioned you in "${documentTitle}".\n\nOpen: ${documentUrl}`,
+        html: `<p><strong>${escapeHtml(actorEmail)}</strong> mentioned you in <strong>${escapeHtml(documentTitle)}</strong>.</p><p><a href="${escapeHtml(documentUrl)}">Open document</a></p>`,
+      }).catch((error) => console.error("Mention email failed", error)),
+    ),
+  );
 };
 
 export const getComments = async (req: AuthRequest, res: Response) => {
@@ -100,6 +170,7 @@ export const createComment = async (req: AuthRequest, res: Response) => {
         document_id: documentId,
         user_id: userId,
         content: body,
+        position: req.body.position || null,
       })
       .select("*")
       .single();
@@ -107,6 +178,7 @@ export const createComment = async (req: AuthRequest, res: Response) => {
     if (!comment) throw new Error("Comment insert failed");
 
     const [shapedComment] = await enrichWithUserEmails([comment]);
+    const documentTitle = await getDocumentTitle(documentId);
 
     await trackDocumentEvent({
       documentId,
@@ -114,6 +186,14 @@ export const createComment = async (req: AuthRequest, res: Response) => {
       eventType: "document_commented",
       metadata: { commentId: comment.id },
     });
+
+    await createMentionNotifications({
+      documentId,
+      documentTitle,
+      commentBody: body,
+      actorId: userId,
+      actorEmail: auth.email,
+    }).catch((notificationError) => console.error("Mention notification failed", notificationError));
 
     return res.status(201).json({ comment: shapedComment });
   } catch (error) {

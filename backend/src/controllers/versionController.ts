@@ -2,6 +2,7 @@ import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
 import { isMissingTableError } from "../utils/dbErrors";
+import { restoreDocumentVersion } from "../utils/documentVersions";
 
 export const createVersion = async (req: AuthRequest, res: Response) => {
   try {
@@ -99,5 +100,58 @@ export const getVersions = async (req: AuthRequest, res: Response) => {
       });
     }
     return res.status(500).json({ message: "Versions load failed" });
+  }
+};
+
+export const restoreVersion = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const userId = auth.userId;
+
+    const documentId = req.params.id;
+    const versionId = req.params.versionId;
+
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("*")
+      .eq("id", documentId)
+      .single();
+
+    if (!doc) return res.status(404).json({ message: "Document not found" });
+
+    if (doc.owner_id !== userId) {
+      const { data: collab } = await supabase
+        .from("document_collaborators")
+        .select("role")
+        .eq("document_id", documentId)
+        .eq("user_id", userId)
+        .single();
+
+      if (!collab || collab.role === "viewer") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+    }
+
+    const { restored, error } = await restoreDocumentVersion({ documentId, versionId, userId });
+    if (error || !restored) {
+      return res.status(404).json({ message: "Version not found" });
+    }
+
+    return res.json({
+      document: {
+        ...doc,
+        content: restored.content,
+        updated_at: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Restore version failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using versions.",
+      });
+    }
+    return res.status(500).json({ message: "Version restore failed" });
   }
 };

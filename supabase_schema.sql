@@ -6,7 +6,34 @@ create table if not exists documents (
   content text default '',
   owner_id text not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  deleted_at timestamp with time zone
+);
+
+create table if not exists auth_users (
+  id text primary key,
+  email text not null unique,
+  password_hash text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create table if not exists auth_refresh_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id text references auth_users(id) on delete cascade not null,
+  token_hash text not null unique,
+  expires_at timestamp with time zone not null,
+  revoked_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create table if not exists auth_password_reset_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id text references auth_users(id) on delete cascade not null,
+  token_hash text not null unique,
+  expires_at timestamp with time zone not null,
+  used_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
 create table if not exists document_collaborators (
@@ -25,6 +52,9 @@ create table if not exists comments (
   position jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+alter table documents add column if not exists deleted_at timestamp with time zone;
+alter table comments add column if not exists position jsonb;
 
 create table if not exists notifications (
   id uuid primary key default gen_random_uuid(),
@@ -84,6 +114,9 @@ create table if not exists document_events (
 );
 
 create index if not exists idx_documents_owner_updated on documents(owner_id, updated_at desc);
+create index if not exists idx_documents_deleted_at on documents(deleted_at);
+create index if not exists idx_auth_refresh_tokens_user on auth_refresh_tokens(user_id);
+create index if not exists idx_auth_password_reset_tokens_user on auth_password_reset_tokens(user_id);
 create index if not exists idx_document_collaborators_user on document_collaborators(user_id);
 create index if not exists idx_document_tags_tag on document_tags(tag);
 create index if not exists idx_document_events_document_created on document_events(document_id, created_at desc);
