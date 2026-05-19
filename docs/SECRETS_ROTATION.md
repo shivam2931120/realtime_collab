@@ -5,7 +5,7 @@ If secrets are exposed, follow these steps immediately:
 1. Revoke the exposed keys:
    - Auth: rotate `AUTH_TOKEN_SECRET` and re-deploy backend.
    - Supabase: revoke the service role key and create a new one.
-   - SMTP (Gmail): revoke the App Password and create a new one, or rotate API keys for SendGrid.
+   - EmailJS: rotate the public and private keys in the EmailJS dashboard, then update Render environment variables.
    - Redis: rotate credentials or replace instances if URL/credentials leaked.
 
 2. Remove secrets from repository history (already performed):

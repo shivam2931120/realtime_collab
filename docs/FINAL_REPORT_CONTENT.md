@@ -22,7 +22,7 @@ The Real-Time Collaboration Platform, branded as Editorial in the deployed appli
 
 The platform focuses on a practical collaboration workflow for remote teams, student groups, writers, consultants, and small product teams. It reduces version confusion by keeping documents in a single shared workspace and provides immediate feedback through live editing, active-user presence, comments, notifications, and email alerts.
 
-The implementation includes a React 19 + TypeScript frontend, Node.js 22 + Express backend, Socket.io realtime communication, Supabase persistence, SMTP email delivery, production deployment on Vercel and Render, and documentation for setup, architecture, secrets, SMTP, and deployment operations.
+The implementation includes a React 19 + TypeScript frontend, Node.js 22 + Express backend, Socket.io realtime communication, Supabase persistence, EmailJS email delivery, production deployment on Vercel and Render, and documentation for setup, architecture, secrets, EmailJS, and deployment operations.
 
 ---
 
@@ -85,7 +85,7 @@ The project aims to deliver a high-fidelity collaborative document workspace whe
 | F05 | Inline Comments and Mentions | Users can add comments, resolve/reopen comments, anchor comments to selected text, and mention users by email. | Implemented. Comments store position metadata and `@email` mentions generate notifications and email. |
 | F06 | Version History | Users can manually save snapshots and restore previous versions. | Implemented. The backend also creates automatic snapshots during active edits. |
 | F07 | Role-Based Access Control | Documents support owner, editor, and viewer roles. | Implemented across REST APIs and Socket.io editing. Viewers cannot modify content or tags. Only owners can update sharing and delete documents. |
-| F08 | Notifications | Users receive in-app and email notifications for sharing and mentions. | Implemented. SMTP was verified successfully. Notifications can be marked read individually or all at once. |
+| F08 | Notifications | Users receive in-app and email notifications for sharing and mentions. | Implemented through EmailJS when `EMAILJS_*` environment variables are configured. Notifications can be marked read individually or all at once. |
 | F09 | Search and Filtering | Users can search documents by title, owner, content, and tags. | Implemented in dashboard and `/api/docs/search`. Folders, tags, templates, and analytics are also included. |
 | F10 | Offline Awareness | Users are warned when realtime or browser connectivity is unavailable. | Implemented. The editor shows offline/realtime banners and queues saves for retry. |
 
@@ -103,11 +103,11 @@ The project aims to deliver a high-fidelity collaborative document workspace whe
 | Real-Time Transport | Socket.io | WebSocket-based realtime rooms with fallback support and simple event model. |
 | Backend | Node.js 22, Express, TypeScript | Stable production runtime, clear route/controller structure, strong typing. |
 | Database | Supabase PostgreSQL | Managed persistence for documents, collaborators, comments, notifications, versions, folders, tags, templates, and analytics events. |
-| Email | Nodemailer + SMTP | Transactional share, mention, and password reset emails. |
+| Email | EmailJS REST API | Transactional share, mention, and password reset emails. |
 | Export Tools | PDFKit, docx, Turndown, html-to-text, Mammoth | Export/import support for PDF, DOCX, Markdown, HTML, and text workflows. |
 | Optional Cache/PubSub | Redis / ioredis | Included for future scaling, cache invalidation, and pub/sub support. |
 | Deployment | Vercel + Render | Vercel serves the frontend; Render hosts the backend API and Socket.io server. |
-| Documentation | Markdown docs, Postman collection, schema SQL | Clear local setup, deployment, architecture, SMTP, release, and security notes. |
+| Documentation | Markdown docs, Postman collection, schema SQL | Clear local setup, deployment, architecture, EmailJS, release, and security notes. |
 
 ---
 
@@ -135,7 +135,7 @@ Documents, collaborators, comments,
 versions, folders, tags, notifications,
 templates, analytics events
       |
-      | SMTP
+      | EmailJS
       v
 Email Provider
 Share, mention, password reset emails
@@ -147,7 +147,7 @@ Share, mention, password reset emails
 - Backend API: auth routes, document routes, comments, folders, versions, discovery/search, tags, templates, imports/exports, notifications, analytics, health and metrics.
 - Realtime layer: Socket.io rooms per document with authenticated socket handshake, active user tracking, cursor movement, presence pings, document update broadcasts, and room cleanup on leave/disconnect.
 - Database layer: Supabase stores persistent entities and relationships using the schema in `supabase_schema.sql`.
-- Email layer: Nodemailer sends SMTP-backed document share, mention, and password reset emails.
+- Email layer: EmailJS sends document share, mention, and password reset emails.
 
 ### 5.3 Data Model Summary
 
@@ -258,7 +258,7 @@ Users can add comments from the editor sidebar. Comments include:
 Mentioning an email in the format `@user@example.com` creates:
 
 - In-app notification.
-- Email notification through SMTP when credentials are configured.
+- Email notification through EmailJS when credentials are configured.
 
 ### 6.7 Version History
 
@@ -371,7 +371,7 @@ The current deployment is suitable for a single backend instance. To scale horiz
 | Frontend | Vercel | Builds the Vite React app from `frontend/` and serves `frontend/dist`. |
 | Backend | Render | Runs the Node.js Express + Socket.io backend from `backend/`. |
 | Database | Supabase | Stores documents and collaboration data. |
-| Email | SMTP provider through Nodemailer | Sends transactional emails. |
+| Email | EmailJS REST API | Sends transactional emails. |
 
 ### 9.3 Environment Variables
 
@@ -386,12 +386,10 @@ AUTH_TOKEN_SECRET=<secret>
 AUTH_TOKEN_TTL_SECONDS=1209600
 SUPABASE_URL=<supabase-url>
 SUPABASE_SERVICE_KEY=<supabase-service-role-key>
-SMTP_SERVICE=gmail
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USER=<smtp-user>
-SMTP_PASS=<smtp-app-password>
-SMTP_FROM=<from-address>
+EMAILJS_SERVICE_ID=<service-id>
+EMAILJS_TEMPLATE_ID=<template-id>
+EMAILJS_PUBLIC_KEY=<public-key>
+EMAILJS_PRIVATE_KEY=<private-key>
 REDIS_URL=
 ```
 
@@ -458,16 +456,16 @@ Verified:
 
 Result: Passed.
 
-### 10.3 SMTP Verification
+### 10.3 EmailJS Verification
 
 Command:
 
 ```bash
 cd backend
-npm run smtp:verify
+npm run email:check
 ```
 
-Result: SMTP verify passed.
+Result: Passes after the required `EMAILJS_*` environment variables are configured.
 
 ### 10.4 Realtime Verification
 
@@ -537,7 +535,7 @@ Restricting only the UI is not enough because users could still call APIs or emi
 
 ### Challenge 3: Email delivery
 
-SMTP configuration often fails because of incorrect credentials or provider restrictions. A dedicated `smtp:verify` script was added so email readiness can be tested independently before running collaboration flows.
+EmailJS configuration needs the correct service, template, public key, and private key. A dedicated `email:check` script was added so email readiness can be tested independently before running collaboration flows.
 
 ### Challenge 4: Schema compatibility
 
@@ -564,7 +562,7 @@ The latest schema includes password-auth tables and soft-delete columns. To keep
 
 This project strengthened my understanding of full-stack product engineering beyond basic CRUD. The most valuable learning was connecting several production concerns into one coherent workflow: authentication, permissions, realtime socket events, persistent storage, email notifications, deployment, environment variables, and verification.
 
-The project also showed that realtime systems need careful server-side checks. Even when the frontend disables editing for viewers, the backend still has to enforce the same rule for REST and Socket.io events. I also learned the importance of health checks, SMTP verification, deployment-specific environment variables, and documenting operational steps clearly.
+The project also showed that realtime systems need careful server-side checks. Even when the frontend disables editing for viewers, the backend still has to enforce the same rule for REST and Socket.io events. I also learned the importance of health checks, EmailJS verification, deployment-specific environment variables, and documenting operational steps clearly.
 
 The final result is a usable collaborative editor with enough depth to demonstrate modern frontend engineering, backend API design, realtime communication, access control, and deployment readiness.
 
@@ -701,7 +699,7 @@ realtime-collab/
   docs/
     ARCHITECTURE.md
     DEPLOYMENT.md
-    SMTP.md
+    EMAILJS.md
     SECRETS_ROTATION.md
     REQUIREMENTS_TRACEABILITY.md
     FINAL_REPORT_CONTENT.md

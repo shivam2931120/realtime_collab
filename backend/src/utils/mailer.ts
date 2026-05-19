@@ -1,31 +1,43 @@
-import nodemailer, { type Transporter } from "nodemailer";
-
-const getSmtpConfig = () => {
-  const host = String(process.env.SMTP_HOST || "smtp.gmail.com").trim();
-  const port = Number(process.env.SMTP_PORT || 465);
-  const user = String(process.env.SMTP_USER || "").trim();
-  const pass = String(process.env.SMTP_PASS || "");
-  const from = String(process.env.SMTP_FROM || user).trim();
-  const service = process.env.SMTP_SERVICE ? String(process.env.SMTP_SERVICE).trim() : undefined;
-
-  return {
-    host,
-    port,
-    secure: port === 465,
-    service,
-    user,
-    pass,
-    from,
-  };
+type EmailJsConfig = {
+  serviceId: string;
+  templateId: string;
+  publicKey: string;
+  privateKey: string;
+  apiUrl: string;
+  fromName: string;
+  replyTo: string;
+  minIntervalMs: number;
 };
 
-let cachedTransporter: Transporter | null = null;
-let cachedTransportKey = "";
-
-export const isEmailEnabled = () => {
-  const { user, pass, from } = getSmtpConfig();
-  return Boolean(user && pass && from);
+type MailSkippedResult = {
+  skipped: true;
+  reason: string;
 };
+
+type MailSentResult = {
+  skipped: false;
+  provider: "emailjs";
+  messageId?: string;
+  accepted: string[];
+  rejected: string[];
+  response: string;
+  status: number;
+};
+
+export type MailResult = MailSkippedResult | MailSentResult;
+
+const EMAILJS_SEND_ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send";
+
+const getEmailJsConfig = (): EmailJsConfig => ({
+  serviceId: String(process.env.EMAILJS_SERVICE_ID || "").trim(),
+  templateId: String(process.env.EMAILJS_TEMPLATE_ID || "").trim(),
+  publicKey: String(process.env.EMAILJS_PUBLIC_KEY || "").trim(),
+  privateKey: String(process.env.EMAILJS_PRIVATE_KEY || "").trim(),
+  apiUrl: String(process.env.EMAILJS_API_URL || EMAILJS_SEND_ENDPOINT).trim(),
+  fromName: String(process.env.EMAILJS_FROM_NAME || "Editorial").trim(),
+  replyTo: String(process.env.EMAILJS_REPLY_TO || "").trim(),
+  minIntervalMs: Math.max(0, Number(process.env.EMAILJS_MIN_INTERVAL_MS || 1100)),
+});
 
 const escapeHtml = (value: string) =>
   value
@@ -35,49 +47,78 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const getTransporter = () => {
-  const { host, port, secure, service, user, pass } = getSmtpConfig();
-
-  if (!user || !pass) {
-    throw new Error("SMTP_USER/SMTP_PASS missing");
-  }
-
-  const cleanPass = (pass || "").replace(/\s+/g, "");
-
-  const transportKey = JSON.stringify({ host, port, secure, service, user, pass: cleanPass });
-  if (cachedTransporter && cachedTransportKey === transportKey) {
-    return cachedTransporter;
-  }
-
-  cachedTransporter = nodemailer.createTransport({
-    ...(service ? { service } : {}),
-    host,
-    port,
-    secure,
-    requireTLS: !secure,
-    pool: true,
-    maxConnections: 2,
-    maxMessages: 100,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
-    auth: {
-      user,
-      pass: cleanPass,
-    },
-  });
-  cachedTransportKey = transportKey;
-  return cachedTransporter;
+const missingEmailJsVars = (config = getEmailJsConfig()) => {
+  const missing: string[] = [];
+  if (!config.serviceId) missing.push("EMAILJS_SERVICE_ID");
+  if (!config.templateId) missing.push("EMAILJS_TEMPLATE_ID");
+  if (!config.publicKey) missing.push("EMAILJS_PUBLIC_KEY");
+  return missing;
 };
 
-export const verifySmtpConnection = async () => {
-  if (!isEmailEnabled()) {
-    return { ok: false as const, reason: "SMTP creds missing" };
+const textToHtml = (text: string) => `
+  <div style="font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6;color:#111827">
+    ${escapeHtml(text).replace(/\n/g, "<br>")}
+  </div>
+`;
+
+export const getEmailDeliveryStatus = () => {
+  const config = getEmailJsConfig();
+  const missing = missingEmailJsVars(config);
+
+  return {
+    enabled: missing.length === 0,
+    missing,
+    provider: "emailjs" as const,
+    endpoint: config.apiUrl,
+    serviceIdSet: Boolean(config.serviceId),
+    templateIdSet: Boolean(config.templateId),
+    publicKeySet: Boolean(config.publicKey),
+    privateKeySet: Boolean(config.privateKey),
+  };
+};
+
+export const isEmailEnabled = () => getEmailDeliveryStatus().enabled;
+
+export const verifyEmailDeliveryConfig = async () => {
+  const status = getEmailDeliveryStatus();
+  if (!status.enabled) {
+    return {
+      ok: false as const,
+      reason: `Missing ${status.missing.join(", ")}`,
+    };
   }
 
-  const transporter = getTransporter();
-  await transporter.verify();
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    provider: status.provider,
+    endpoint: status.endpoint,
+    privateKeySet: status.privateKeySet,
+  };
+};
+
+let emailSendChain = Promise.resolve();
+let lastEmailSendAt = 0;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const enqueueEmailJsSend = async <T>(task: () => Promise<T>, minIntervalMs: number) => {
+  const queued = emailSendChain.then(async () => {
+    const elapsed = Date.now() - lastEmailSendAt;
+    if (elapsed < minIntervalMs) {
+      await sleep(minIntervalMs - elapsed);
+    }
+
+    const result = await task();
+    lastEmailSendAt = Date.now();
+    return result;
+  });
+
+  emailSendChain = queued.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return queued;
 };
 
 export const sendMail = async (payload: {
@@ -85,45 +126,65 @@ export const sendMail = async (payload: {
   subject: string;
   text: string;
   html?: string;
-}) => {
-  if (!isEmailEnabled()) {
-    return { skipped: true as const };
+}): Promise<MailResult> => {
+  const config = getEmailJsConfig();
+  const missing = missingEmailJsVars(config);
+
+  if (missing.length) {
+    return {
+      skipped: true as const,
+      reason: `Missing ${missing.join(", ")}`,
+    };
   }
 
-  const { from } = getSmtpConfig();
-
-  if (!from) {
-    throw new Error("SMTP_FROM missing");
-  }
-
-  const transporter = getTransporter();
+  const templateParams = {
+    app_name: "Editorial",
+    from_name: config.fromName || "Editorial",
+    reply_to: config.replyTo,
+    to_email: payload.to,
+    to_name: payload.to.split("@")[0] || payload.to,
+    recipient_email: payload.to,
+    subject: payload.subject,
+    text_message: payload.text,
+    message: payload.text,
+    html_message: payload.html || textToHtml(payload.text),
+  };
 
   try {
-    const info = (await transporter.sendMail({
-      from,
-      to: payload.to,
-      subject: payload.subject,
-      text: payload.text,
-      html: payload.html,
-    })) as {
-      messageId?: string;
-      accepted?: unknown[];
-      rejected?: unknown[];
-      response?: string;
-    };
+    const response = await enqueueEmailJsSend(
+      () =>
+        fetch(config.apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            service_id: config.serviceId,
+            template_id: config.templateId,
+            user_id: config.publicKey,
+            accessToken: config.privateKey || undefined,
+            template_params: templateParams,
+          }),
+        }),
+      config.minIntervalMs,
+    );
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`EmailJS send failed (${response.status}): ${responseText || response.statusText}`);
+    }
 
     return {
       skipped: false as const,
-      messageId: info.messageId,
-      accepted: (info.accepted || []).map(String),
-      rejected: (info.rejected || []).map(String),
-      response: info.response,
+      provider: "emailjs",
+      accepted: [payload.to],
+      rejected: [],
+      response: responseText || "OK",
+      status: response.status,
     };
   } catch (err: any) {
-    console.error("📧 SMTP sendMail failed:", err.message);
-    console.error("   Response code:", err.responseCode, "| Command:", err.command);
-    console.error("   ➜ If 535 BadCredentials: generate a fresh Gmail App Password and update SMTP_PASS.");
-    console.error("   ➜ If account has Advanced Protection or 2FA disabled, app passwords may be blocked.");
+    console.error("EmailJS sendMail failed:", err?.message || err);
+    console.error("Check EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY, EMAILJS_PRIVATE_KEY, and the template To Email field.");
     throw err;
   }
 };
@@ -135,16 +196,16 @@ export const sendPasswordResetEmail = async (payload: { to: string; resetUrl: st
   const text = `A password reset was requested for your account.\n\nOpen this link to set a new password (valid for 30 minutes):\n${safeUrl}\n\nIf you didn't request this, you can ignore this email.`;
 
   const html = `
-    <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; line-height: 1.6; color: #111">
-      <h2 style="margin: 0 0 12px">Reset your password</h2>
-      <p style="margin: 0 0 12px">A password reset was requested for your account.</p>
-      <p style="margin: 0 0 16px">This link is valid for <strong>30 minutes</strong>:</p>
-      <p style="margin: 0 0 20px">
-        <a href="${escapeHtml(safeUrl)}" style="display: inline-block; padding: 10px 14px; background: #16a34a; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 700">
+    <div style="font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6;color:#111827">
+      <h2 style="margin:0 0 12px">Reset your password</h2>
+      <p style="margin:0 0 12px">A password reset was requested for your account.</p>
+      <p style="margin:0 0 16px">This link is valid for <strong>30 minutes</strong>:</p>
+      <p style="margin:0 0 20px">
+        <a href="${escapeHtml(safeUrl)}" style="display:inline-block;padding:10px 14px;background:#16a34a;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">
           Reset password
         </a>
       </p>
-      <p style="margin: 0; font-size: 13px; color: #444">If you didn't request this, you can ignore this email.</p>
+      <p style="margin:0;font-size:13px;color:#444">If you didn't request this, you can ignore this email.</p>
     </div>
   `;
 

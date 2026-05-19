@@ -19,3 +19,15 @@ services:
         sync: false
       - key: CLIENT_URL
         sync: false
+      - key: EMAILJS_SERVICE_ID
+        sync: false
+      - key: EMAILJS_TEMPLATE_ID
+        sync: false
+      - key: EMAILJS_PUBLIC_KEY
+        sync: false
+      - key: EMAILJS_PRIVATE_KEY
+        sync: false
+      - key: EMAILJS_FROM_NAME
+        value: Editorial
+      - key: EMAILJS_MIN_INTERVAL_MS
+        value: "1100"

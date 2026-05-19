@@ -13,7 +13,7 @@ Source: `project.pdf` LogicVeda Real-Time Collaboration Platform requirements.
 | F05 | Comments/mentions | Comments support resolved/open state, anchored editor ranges, and `@email` mention notifications plus email delivery. |
 | F06 | Version history | Manual snapshots, automatic snapshots, version list, and persisted restore endpoint are implemented. |
 | F07 | RBAC/share | Owner, editor, and viewer roles are enforced across REST and socket updates. Share by email creates collaborators and notifications. |
-| F08 | Notifications/email | In-app notifications and SMTP-backed share, mention, and password reset emails are implemented. |
+| F08 | Notifications/email | In-app notifications and EmailJS-backed share, mention, and password reset emails are implemented. |
 | F09 | Search/filtering | Dashboard search plus `/api/docs/search`, tags, folders, templates, import/export, and analytics are present. Tags require the latest schema. |
 | F10 | Offline awareness | The editor shows offline/realtime warnings and queues saves for retry when connectivity returns. |
 
@@ -32,5 +32,5 @@ Source: `project.pdf` LogicVeda Real-Time Collaboration Platform requirements.
 - Backend build: `npm run build`
 - Frontend build: `npm run build`
 - Smoke: `./scripts/smoke_check.sh http://localhost:5000`
-- SMTP: `npm run smtp:verify`
+- EmailJS config: `npm run email:check`
 - Realtime smoke: two Socket.io clients joined one document, presence reached 2 users, collaborator edits propagated and persisted.

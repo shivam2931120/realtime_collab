@@ -10,8 +10,9 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc --ignoreDeprecations 5.0",
     "start": "node dist/server.js",
-    "smtp:verify": "tsx ./scripts/verify-smtp.ts",
-    "smtp:test": "tsx ./scripts/send-test-email.ts"
+    "email:check": "tsx ./scripts/check-emailjs.ts",
+    "email:test": "tsx ./scripts/send-test-email.ts",
+    "email:history": "tsx ./scripts/emailjs-history.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.3",
@@ -23,7 +24,6 @@
     "ioredis": "^5.10.1",
     "mammoth": "^1.12.0",
     "marked": "^18.0.2",
-    "nodemailer": "^8.0.5",
     "pdfkit": "^0.18.0",
     "socket.io": "^4.8.3",
     "turndown": "^7.2.4"
@@ -33,7 +33,6 @@
     "@types/express": "^4.17.21",
     "@types/html-to-text": "^9.0.4",
     "@types/node": "^20.11.30",
-    "@types/nodemailer": "^8.0.0",
     "@types/pdfkit": "^0.17.6",
     "@types/turndown": "^5.0.6",
     "ts-node-dev": "^2.0.0",

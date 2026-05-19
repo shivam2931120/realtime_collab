@@ -32,7 +32,8 @@ Render environment variables:
 - `CLIENT_URL` must be your Vercel URL, for example `https://your-app.vercel.app`
 - Add `CLIENT_URLS` only if you need preview/custom frontend domains
 - Add `REDIS_URL` only if you add Redis or scale beyond one backend instance
-- Add `SMTP_*` variables only if you want email notifications
+- Add `EMAILJS_*` variables only if you want email notifications
+- Email variables: `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY`, `EMAILJS_FROM_NAME=Editorial`, `EMAILJS_MIN_INTERVAL_MS=1100`
 
 Manual Render settings, if you do not use the Blueprint:
 
