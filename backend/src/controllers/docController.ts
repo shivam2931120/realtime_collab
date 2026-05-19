@@ -175,6 +175,32 @@ const runInBackground = (label: string, task: () => Promise<void>) => {
   });
 };
 
+const deleteRowsForDocument = async (table: string, documentId: string) => {
+  const { error } = await supabase.from(table).delete().eq("document_id", documentId);
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      return;
+    }
+    throw error;
+  }
+};
+
+const deleteDocumentDependencies = async (documentId: string) => {
+  const dependentTables = [
+    "document_collaborators",
+    "comments",
+    "notifications",
+    "document_versions",
+    "document_tags",
+    "document_events",
+  ];
+
+  for (const table of dependentTables) {
+    await deleteRowsForDocument(table, documentId);
+  }
+};
+
 const queueShareEmails = ({
   documentId,
   documentTitle,
@@ -693,20 +719,14 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
     if (!doc) return res.status(404).json({ message: "Document nahi mila" });
     if (doc.owner_id !== userId) return res.status(403).json({ message: "Sirf owner delete kar sakta hai" });
 
-    const { error } = await supabase
+    await deleteDocumentDependencies(documentId);
+
+    const { error: hardDeleteError } = await supabase
       .from("documents")
-      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", documentId);
-
-    if (error) {
-      const missingDeletedColumn = error.code === "42703" || /deleted_at/i.test(String(error.message || ""));
-      if (!missingDeletedColumn) {
-        throw error;
-      }
-
-      const { error: hardDeleteError } = await supabase.from("documents").delete().eq("id", documentId);
-      if (hardDeleteError) throw hardDeleteError;
-    }
+      .delete()
+      .eq("id", documentId)
+      .eq("owner_id", userId);
+    if (hardDeleteError) throw hardDeleteError;
 
     await publishEvent("docs:mutations", {
       action: "delete",
@@ -716,7 +736,7 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
     await invalidateCachePrefix("search:");
     await invalidateCachePrefix("popular-tags:");
 
-    return res.json({ message: "Document deleted" });
+    return res.json({ message: "Document permanently deleted" });
   } catch (error) {
     console.error("Delete document failed", error);
     if (isMissingTableError(error)) {

@@ -29,5 +29,7 @@ services:
         sync: false
       - key: EMAILJS_FROM_NAME
         value: Editorial
+      - key: EMAILJS_REPLY_TO
+        sync: false
       - key: EMAILJS_MIN_INTERVAL_MS
         value: "1100"

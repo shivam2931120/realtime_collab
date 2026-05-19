@@ -10,6 +10,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc --ignoreDeprecations 5.0",
     "start": "node dist/server.js",
+    "db:check": "tsx ./scripts/check-supabase-schema.ts",
     "email:check": "tsx ./scripts/check-emailjs.ts",
     "email:test": "tsx ./scripts/send-test-email.ts",
     "email:history": "tsx ./scripts/emailjs-history.ts"

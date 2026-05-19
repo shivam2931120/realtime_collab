@@ -8,6 +8,10 @@ EmailJS template
 - Create one EmailJS template.
 - Set the template `To Email` field to `{{to_email}}`.
 - Set the template `Subject` field to `{{subject}}`.
+- Set the template `From Name` field to `{{from_name}}`.
+- Leave `From Email` as the default EmailJS/Gmail service address.
+- Set the template `Reply To` field to `{{reply_to}}`, or leave it blank if you do not want replies.
+- Leave `Cc` and `Bcc` blank unless you intentionally want copies.
 - Set the template HTML/content body to:
 
 ```html
@@ -26,6 +30,19 @@ EMAILJS_FROM_NAME=Editorial
 EMAILJS_REPLY_TO=
 EMAILJS_MIN_INTERVAL_MS=1100
 ```
+
+What to provide to finish setup
+- EmailJS Service ID, for example `service_xxxxxxx`.
+- EmailJS Template ID, for example `template_xxxxxxx`.
+- EmailJS Public Key.
+- EmailJS Private Key.
+- A real recipient email address for one live test send.
+- The deployed frontend URL for `CLIENT_URL`, if testing production links.
+
+Account security
+- In EmailJS, open Account > Security.
+- Enable API calls from non-browser applications. The backend sends email server-side, so EmailJS rejects live sends with 403 until this is enabled.
+- Set `EMAILJS_REPLY_TO` to the mailbox where replies should go, or leave it blank if you do not want replies.
 
 Checks
 

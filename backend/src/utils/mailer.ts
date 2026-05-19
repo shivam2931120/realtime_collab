@@ -52,6 +52,7 @@ const missingEmailJsVars = (config = getEmailJsConfig()) => {
   if (!config.serviceId) missing.push("EMAILJS_SERVICE_ID");
   if (!config.templateId) missing.push("EMAILJS_TEMPLATE_ID");
   if (!config.publicKey) missing.push("EMAILJS_PUBLIC_KEY");
+  if (!config.privateKey) missing.push("EMAILJS_PRIVATE_KEY");
   return missing;
 };
 
@@ -171,7 +172,12 @@ export const sendMail = async (payload: {
     const responseText = await response.text();
 
     if (!response.ok) {
-      throw new Error(`EmailJS send failed (${response.status}): ${responseText || response.statusText}`);
+      const accountSecurityHint = /non-browser/i.test(responseText)
+        ? " Enable Account > Security > API calls from non-browser applications in the EmailJS dashboard."
+        : "";
+      throw new Error(
+        `EmailJS send failed (${response.status}): ${responseText || response.statusText}.${accountSecurityHint}`,
+      );
     }
 
     return {
