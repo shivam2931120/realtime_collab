@@ -186,6 +186,7 @@ const EditorPage = () => {
   const [wideCanvas, setWideCanvas] = useState(false);
   const [activeUsers, setActiveUsers] = useState<ActiveSession[]>([]);
   const [showVersions, setShowVersions] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<null | "comments" | "versions">(null);
   const [versions, setVersions] = useState<any[]>([]);
   const [creatingVersion, setCreatingVersion] = useState(false);
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>([]);
@@ -242,7 +243,7 @@ const EditorPage = () => {
     content: "<p></p>",
     editorProps: {
       attributes: {
-        class: "editorial-editor bg-white px-16 py-16 md:px-24 md:py-24 text-[#131313]",
+        class: "editorial-editor bg-white px-5 py-8 text-[#131313] sm:px-8 sm:py-10 md:px-24 md:py-24",
       },
       handleKeyDown: (_view, event) => {
         const isFindShortcut = (event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f";
@@ -1344,23 +1345,31 @@ const EditorPage = () => {
 
   return (
     <div className="bg-surface text-on-surface selection:bg-primary/30">
-      <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-[#131313] px-6 text-sm font-medium tracking-tight">
-        <div className="flex items-center gap-6">
-          <span className="text-xl font-bold uppercase tracking-tighter text-white">Editorial</span>
-          <div className="relative hidden items-center gap-2 text-[#a3a3a3] md:flex">
+      <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-[#131313] px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-3 md:gap-6">
+          <span className="shrink-0 text-base font-bold uppercase tracking-tighter text-white sm:text-xl">Editorial</span>
+          <div className="relative flex items-center gap-2 text-[#a3a3a3]">
+            <button
+              type="button"
+              onClick={() => setOpenMenu((current) => (current ? null : "file"))}
+              className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs font-semibold text-white transition hover:bg-[#201f1f] md:hidden"
+            >
+              <span className="material-symbols-outlined text-base">menu</span>
+              Menu
+            </button>
             {(["file", "edit", "view"] as const).map((menu) => (
               <button
                 key={menu}
                 type="button"
                 onClick={() => setOpenMenu((current) => (current === menu ? null : menu))}
-                className={`${menuButtonClass} ${openMenu === menu ? "border border-white/20 text-white" : ""}`}
+                className={`${menuButtonClass} hidden md:inline-flex ${openMenu === menu ? "border border-white/20 text-white" : ""}`}
               >
                 {menu[0].toUpperCase() + menu.slice(1)}
               </button>
             ))}
 
             {openMenu ? (
-              <div className="absolute left-0 top-11 z-[90] min-w-[220px] rounded border border-white/10 bg-surface-container p-2 shadow-2xl">
+              <div className="absolute right-0 top-11 z-[90] max-h-[70vh] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-white/10 bg-surface-container p-2 shadow-2xl md:left-0 md:right-auto md:min-w-[220px]">
                 {openMenu === "file" ? (
                   <div className="border-b border-white/5 p-2">
                     <input
@@ -1392,8 +1401,8 @@ const EditorPage = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <span className={`text-[10px] font-bold uppercase tracking-[0.2em] ${socketState === "connected" ? "text-primary" : "text-on-surface-variant"}`}>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+          <span className={`hidden text-[10px] font-bold uppercase tracking-[0.2em] sm:inline ${socketState === "connected" ? "text-primary" : "text-on-surface-variant"}`}>
             {socketState}
           </span>
           <button
@@ -1471,15 +1480,15 @@ const EditorPage = () => {
             sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
           }`}
         >
-          <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/5 bg-surface-container-lowest px-8">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-lg font-bold tracking-tight text-on-surface">{activeDoc?.title}</h1>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">
+          <header className="sticky top-0 z-30 flex min-h-16 flex-col items-stretch justify-between gap-3 border-b border-white/5 bg-surface-container-lowest px-4 py-3 md:h-16 md:flex-row md:items-center md:px-8 md:py-0">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3 md:gap-4">
+              <div className="min-w-0 flex-1 md:flex-none">
+                <h1 className="truncate text-base font-bold tracking-tight text-on-surface sm:text-lg">{activeDoc?.title}</h1>
+                <p className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3] sm:block">
                   Doc ID: {id}
                 </p>
                 {tags.length ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div className="mt-2 flex max-w-full flex-wrap gap-1.5">
                     {tags.map((tag) => (
                       <span
                         key={tag}
@@ -1508,7 +1517,7 @@ const EditorPage = () => {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">{saveStatusLabel}</span>
               </div>
               {activePresence.length > 0 && (
-                <div className="ml-4 flex items-center gap-3">
+                <div className="hidden items-center gap-3 sm:flex lg:ml-4">
                   <div className="flex -space-x-2 overflow-hidden">
                     {activePresence.map((u) => (
                       <div
@@ -1537,14 +1546,34 @@ const EditorPage = () => {
               </span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setShareModalOpen(true)} className="emerald-primary-button">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center sm:justify-end md:gap-3">
+              <button
+                type="button"
+                onClick={() => setMobilePanel("comments")}
+                className="emerald-muted-button flex-1 sm:flex-none xl:hidden"
+              >
+                <span className="material-symbols-outlined text-sm">chat_bubble</span>
+                Comments
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  loadVersions();
+                  setMobilePanel("versions");
+                }}
+                className="emerald-muted-button flex-1 sm:flex-none xl:hidden"
+              >
+                <span className="material-symbols-outlined text-sm">history</span>
+                Versions
+              </button>
+              <button type="button" onClick={() => setShareModalOpen(true)} className="emerald-primary-button flex-1 sm:flex-none">
                 Share
               </button>
               <button
                 type="button"
                 onClick={loadDocument}
                 className="rounded p-2 text-[#a3a3a3] transition hover:bg-[#201f1f] hover:text-white"
+                title="Refresh document"
               >
                 <span className="material-symbols-outlined">refresh</span>
               </button>
@@ -1552,7 +1581,7 @@ const EditorPage = () => {
           </header>
 
           {onlineProblem ? (
-            <div className="border-b border-yellow-400/20 bg-yellow-400/10 px-8 py-2 text-xs font-semibold text-yellow-100">
+            <div className="border-b border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold text-yellow-100 md:px-8">
               {!browserOnline
                 ? "You are offline. Edits are queued locally and will retry when your connection returns."
                 : "Realtime connection is unavailable. Edits keep saving through the retry queue."}
@@ -1560,7 +1589,7 @@ const EditorPage = () => {
           ) : null}
 
           {activePresence.length ? (
-            <div className="border-b border-white/5 bg-surface-container-lowest px-8 py-2">
+            <div className="border-b border-white/5 bg-surface-container-lowest px-4 py-2 md:px-8">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-on-surface-variant">
                 <span className="font-bold uppercase tracking-widest text-primary">Collaborators</span>
                 {activePresence.map((user) => (
@@ -1580,17 +1609,17 @@ const EditorPage = () => {
           ) : null}
 
           <div
-            className="flex flex-1 overflow-y-auto px-4 pb-32 pt-8 md:px-8"
+            className="flex flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-4 md:px-8 md:pb-32 md:pt-8"
             onScroll={() => setScrollVersion((current) => current + 1)}
           >
-            <div className={`mx-auto flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[800px]"}`}>
-              <div className="sticky top-4 z-40 mx-auto mb-12 flex flex-col items-center justify-center gap-2">
-                <div className="editorial-editor-toolbar flex max-w-full flex-wrap items-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-4 py-2 shadow-2xl backdrop-blur-xl">
+            <div className={`mx-auto w-full min-w-0 flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[800px]"}`}>
+              <div className="sticky top-2 z-40 mx-auto mb-6 flex flex-col items-center justify-center gap-2 md:top-4 md:mb-12">
+                <div className="editorial-editor-toolbar flex w-full max-w-[calc(100vw-1.5rem)] flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded border border-white/10 bg-surface-container-highest/90 px-2 py-2 shadow-2xl backdrop-blur-xl sm:max-w-full sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-4">
                   <select
                     value={currentBlockStyle}
                     disabled={editorDisabled}
                     onChange={(event) => applyBlockStyle(event.target.value)}
-                    className="mr-2 h-8 rounded border border-white/10 bg-surface-container px-2 text-xs font-semibold text-white outline-none transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mr-1 h-8 shrink-0 rounded border border-white/10 bg-surface-container px-2 text-xs font-semibold text-white outline-none transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 md:mr-2"
                     title="Block style"
                   >
                     <option value="paragraph">Body</option>
@@ -1610,11 +1639,11 @@ const EditorPage = () => {
                         <span className="material-symbols-outlined text-lg">{item.icon}</span>
                       </button>
                       {index === 1 || index === 6 || index === 9 || index === 11 || index === 14 ? (
-                        <div className="mx-2 h-4 w-px bg-white/10" />
+                        <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block md:mx-2" />
                       ) : null}
                     </div>
                   ))}
-                  <div className="mx-2 h-4 w-px bg-white/10" />
+                  <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block md:mx-2" />
                   {(["left", "center", "right", "justify"] as const).map((alignment) => (
                     <button
                       key={alignment}
@@ -1652,8 +1681,8 @@ const EditorPage = () => {
                   >
                     <span className="material-symbols-outlined text-lg">format_clear</span>
                   </button>
-                  <div className="mx-2 h-4 w-px bg-white/10" />
-                  <div className="flex items-center gap-1" title="Text color">
+                  <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block md:mx-2" />
+                  <div className="flex shrink-0 items-center gap-1" title="Text color">
                     {textColorOptions.map((color) => (
                       <button
                         key={color.value}
@@ -1677,7 +1706,7 @@ const EditorPage = () => {
                       ×
                     </button>
                   </div>
-                  <div className="flex items-center gap-1" title="Highlight color">
+                  <div className="flex shrink-0 items-center gap-1" title="Highlight color">
                     {highlightColorOptions.map((color) => (
                       <button
                         key={color.value}
@@ -1704,7 +1733,7 @@ const EditorPage = () => {
                 </div>
 
                 {isTableActive ? (
-                  <div className="editorial-editor-toolbar flex max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-3 py-2 shadow-xl backdrop-blur-xl">
+                  <div className="editorial-editor-toolbar flex w-full max-w-[calc(100vw-1.5rem)] flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded border border-white/10 bg-surface-container-highest/90 px-3 py-2 shadow-xl backdrop-blur-xl sm:max-w-full sm:flex-wrap sm:justify-center sm:overflow-visible">
                     {tableToolItems.map((item) => (
                       <button
                         key={item.label}
@@ -1720,8 +1749,8 @@ const EditorPage = () => {
                 ) : null}
 
                 {findOpen ? (
-                  <div className="flex max-w-full flex-wrap items-center justify-center gap-2 rounded border border-white/10 bg-surface-container-highest/95 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-xl">
-                    <div className="flex items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1">
+                  <div className="flex w-full max-w-[calc(100vw-1.5rem)] flex-col items-stretch gap-2 rounded border border-white/10 bg-surface-container-highest/95 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-xl sm:max-w-full sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
+                    <div className="flex w-full items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1 sm:w-auto">
                       <span className="material-symbols-outlined text-base text-on-surface-variant">search</span>
                       <input
                         value={findQuery}
@@ -1732,16 +1761,16 @@ const EditorPage = () => {
                             selectFindMatch(selectedFindIndex + (event.shiftKey ? -1 : 1));
                           }
                         }}
-                        className="w-36 border-0 bg-transparent text-xs text-white outline-none placeholder:text-on-surface-variant"
+                        className="w-full border-0 bg-transparent text-xs text-white outline-none placeholder:text-on-surface-variant sm:w-36"
                         placeholder="Find"
                       />
                     </div>
-                    <div className="flex items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1">
+                    <div className="flex w-full items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1 sm:w-auto">
                       <span className="material-symbols-outlined text-base text-on-surface-variant">edit</span>
                       <input
                         value={replaceQuery}
                         onChange={(event) => setReplaceQuery(event.target.value)}
-                        className="w-36 border-0 bg-transparent text-xs text-white outline-none placeholder:text-on-surface-variant"
+                        className="w-full border-0 bg-transparent text-xs text-white outline-none placeholder:text-on-surface-variant sm:w-36"
                         placeholder="Replace"
                       />
                     </div>
@@ -1803,8 +1832,8 @@ const EditorPage = () => {
                 ) : null}
 
                 {canTransformSelection ? (
-                  <div className="flex flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-xl">
-                    <span className="px-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Selection</span>
+                  <div className="flex w-full max-w-[calc(100vw-1.5rem)] flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded border border-white/10 bg-surface-container-highest/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-xl sm:w-auto sm:max-w-full sm:flex-wrap sm:justify-center sm:overflow-visible">
+                    <span className="shrink-0 px-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Selection</span>
                     <button
                       type="button"
                       disabled={editorDisabled}
@@ -1841,13 +1870,13 @@ const EditorPage = () => {
                 ) : null}
               </div>
 
-              <div ref={editorSurfaceRef} className="relative overflow-visible rounded-lg bg-white shadow-2xl">
-                <div className="border-b border-black/5 bg-white px-16 py-5 text-xs font-bold uppercase tracking-[0.2em] text-[#737373] md:px-24">
+              <div ref={editorSurfaceRef} className="relative overflow-hidden rounded-md bg-white shadow-2xl sm:rounded-lg">
+                <div className="border-b border-black/5 bg-white px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#737373] sm:px-8 md:px-24 md:py-5 md:text-xs">
                   Editorial Canvas · Precision Mode
                 </div>
 
                 {!editor ? (
-                  <div className="flex min-h-[1200px] items-center justify-center bg-white p-16 text-sm text-[#404040]">
+                  <div className="flex min-h-[620px] items-center justify-center bg-white p-8 text-sm text-[#404040] md:min-h-[1200px] md:p-16">
                     Loading editor...
                   </div>
                 ) : (
@@ -2011,11 +2040,180 @@ const EditorPage = () => {
             )}
           </aside>
         ) : null}
+
+        {mobilePanel === "comments" ? (
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-black/75 xl:hidden"
+            onClick={() => setMobilePanel(null)}
+          >
+            <section
+              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-white/10 bg-surface p-4 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Comments</h4>
+                  <p className="mt-1 text-xs text-primary">{openCommentCount} open</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel(null)}
+                  className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="mb-4 grid grid-cols-3 gap-1 rounded border border-white/5 bg-surface-container-low p-1">
+                {(["open", "resolved", "all"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setCommentFilter(filter)}
+                    className={`rounded px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition ${
+                      commentFilter === filter ? "bg-primary/20 text-primary" : "text-on-surface-variant active:bg-white/10"
+                    }`}
+                  >
+                    {filter === "open" ? `Open ${openCommentCount}` : filter === "resolved" ? `Done ${resolvedCommentCount}` : "All"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mb-5 space-y-3">
+                <div className="flex items-center gap-3 rounded border border-white/5 bg-surface-container-high p-3">
+                  <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
+                  <input
+                    className="min-w-0 flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
+                    placeholder="Type a comment..."
+                    value={commentBody}
+                    onChange={(event) => setCommentBody(event.target.value)}
+                    type="text"
+                  />
+                </div>
+                <button type="button" onClick={() => addComment().catch(console.error)} className="emerald-primary-button w-full">
+                  Add Comment
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {filteredComments.length ? (
+                  filteredComments.map((comment) => (
+                    <div
+                      key={`mobile-${comment.id}`}
+                      className={`space-y-3 rounded-lg border-l-2 bg-surface-container p-4 shadow-sm ${
+                        comment.resolved ? "border-white/10 opacity-75" : "border-primary"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-highest text-[10px] uppercase text-white">
+                          {comment.author.email.slice(0, 2)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-[11px] font-bold text-white">{comment.author.email}</div>
+                          <div className="text-[9px] text-[#a3a3a3]">{new Date(comment.createdAt).toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
+                      {comment.position?.text ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            focusCommentPosition(comment);
+                            setMobilePanel(null);
+                          }}
+                          className="w-full rounded border border-white/10 bg-surface-container-high px-2 py-2 text-left text-[11px] text-on-surface-variant transition active:border-primary/40 active:text-primary"
+                        >
+                          Linked: "{comment.position.text}"
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => toggleCommentResolved(comment).catch(console.error)}
+                        className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">
+                          {comment.resolved ? "undo" : "task_alt"}
+                        </span>
+                        {comment.resolved ? "Reopen" : "Resolve"}
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg bg-surface-container/50 p-4 text-sm text-on-surface-variant">
+                    No {commentFilter === "all" ? "" : commentFilter} comments for this document.
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {mobilePanel === "versions" ? (
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-black/75 xl:hidden"
+            onClick={() => setMobilePanel(null)}
+          >
+            <section
+              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-white/10 bg-surface p-4 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Version History</h4>
+                  <p className="mt-1 text-xs text-primary">{versions.length} snapshots</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel(null)}
+                  className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={snapshotVersion}
+                disabled={creatingVersion}
+                className="emerald-primary-button mb-4 w-full"
+              >
+                {creatingVersion ? "Saving..." : "Create Snapshot"}
+              </button>
+
+              {versions.length ? (
+                <div className="space-y-3">
+                  {versions.map((version) => (
+                    <button
+                      key={`mobile-version-${version.id}`}
+                      type="button"
+                      className="w-full space-y-2 rounded-lg border border-white/5 bg-surface-container p-4 text-left transition-colors active:border-primary/50"
+                      onClick={() => {
+                        if (window.confirm("Restore this version? This will replace your current content.")) {
+                          restoreVersion(version).catch(console.error);
+                          setMobilePanel(null);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-bold text-white">Snapshot</span>
+                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(version.created_at).toLocaleString()}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg bg-surface-container/50 p-4 text-sm text-on-surface-variant">
+                  No saved versions yet.
+                </div>
+              )}
+            </section>
+          </div>
+        ) : null}
       </div>
 
       {shareModalOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4">
-          <div className="editorial-panel w-full max-w-lg rounded-lg border border-outline-variant/10 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 px-0 sm:items-center sm:px-4">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:rounded-lg sm:p-6">
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Share</p>
@@ -2080,9 +2278,9 @@ const EditorPage = () => {
                 <div className="mt-3 space-y-2">
 	                  {activeDoc?.collaborators.length ? (
 	                    activeDoc.collaborators.map((item) => (
-	                      <div key={`${item.id}-${item.email}`} className="flex items-center justify-between gap-3 rounded bg-surface-container-high p-3 text-sm text-white">
-	                        <span className="min-w-0 truncate">{item.email}</span>
-	                        <div className="flex shrink-0 items-center gap-2">
+	                      <div key={`${item.id}-${item.email}`} className="flex flex-col items-start justify-between gap-3 rounded bg-surface-container-high p-3 text-sm text-white sm:flex-row sm:items-center">
+	                        <span className="max-w-full min-w-0 truncate">{item.email}</span>
+	                        <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-start">
 	                          <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(item.role)}`}>
 	                            {item.role}
 	                          </span>
@@ -2107,19 +2305,19 @@ const EditorPage = () => {
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <button
                   type="button"
                   onClick={() => saveTags().catch(console.error)}
                   disabled={savingTags || activeDoc?.role === "viewer"}
-                  className="emerald-muted-button"
+                  className="emerald-muted-button w-full sm:w-auto"
                 >
                   {savingTags ? "Saving tags..." : "Save tags"}
                 </button>
-                <button type="button" onClick={() => setShareModalOpen(false)} className="emerald-muted-button">
+                <button type="button" onClick={() => setShareModalOpen(false)} className="emerald-muted-button w-full sm:w-auto">
                   Cancel
                 </button>
-                <button type="button" onClick={() => handleShare().catch(console.error)} disabled={savingShare} className="emerald-primary-button">
+                <button type="button" onClick={() => handleShare().catch(console.error)} disabled={savingShare} className="emerald-primary-button w-full sm:w-auto">
                   {savingShare ? "Saving..." : "Share"}
                 </button>
               </div>
@@ -2129,8 +2327,8 @@ const EditorPage = () => {
       ) : null}
 
       {exportPreviewFormat ? (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/75 px-4">
-          <div className="editorial-panel flex max-h-[86vh] w-full max-w-3xl flex-col rounded-lg border border-outline-variant/10 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/75 px-0 sm:items-center sm:px-4">
+          <div className="editorial-panel flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:max-h-[86vh] sm:rounded-lg sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Export preview</p>
@@ -2165,7 +2363,7 @@ const EditorPage = () => {
               ))}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-white/10 bg-white p-6 text-[#171717]">
+            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-white/10 bg-white p-4 text-[#171717] sm:p-6">
               {exportPreviewFormat === "html" ? (
                 <div
                   className="prose max-w-none"
@@ -2178,8 +2376,8 @@ const EditorPage = () => {
               )}
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-3">
-              <button type="button" onClick={() => setExportPreviewFormat(null)} className="emerald-muted-button">
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <button type="button" onClick={() => setExportPreviewFormat(null)} className="emerald-muted-button w-full sm:w-auto">
                 Cancel
               </button>
               <button
@@ -2189,7 +2387,7 @@ const EditorPage = () => {
                   setExportPreviewFormat(null);
                   exportFromServer(format).catch(console.error);
                 }}
-                className="emerald-primary-button"
+                className="emerald-primary-button w-full sm:w-auto"
               >
                 Download {exportPreviewFormat.toUpperCase()}
               </button>

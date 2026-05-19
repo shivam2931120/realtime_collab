@@ -278,22 +278,23 @@ const DashboardPage = () => {
       pageLabel="Editor Workspace"
       title="Recent Documents"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             type="button"
             onClick={fetchData}
             variant="outlined"
             color="success"
             size="small"
+            className="w-full sm:w-auto"
             startIcon={<span className="material-symbols-outlined text-sm">refresh</span>}
           >
             Refresh
           </Button>
-          <button type="button" onClick={() => setIsCreateFolderOpen(true)} className="emerald-muted-button">
+          <button type="button" onClick={() => setIsCreateFolderOpen(true)} className="emerald-muted-button w-full sm:w-auto">
             <span className="material-symbols-outlined text-sm">create_new_folder</span>
             New Folder
           </button>
-          <button type="button" onClick={() => setIsCreateOpen(true)} className="emerald-primary-button">
+          <button type="button" onClick={() => setIsCreateOpen(true)} className="emerald-primary-button w-full sm:w-auto">
             <span className="material-symbols-outlined text-sm">add</span>
             New Entry
           </button>
@@ -303,7 +304,7 @@ const DashboardPage = () => {
       {error ? <div className="mb-6 text-sm text-error">{error}</div> : null}
 
       {currentFolderId && (
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
           <button
             type="button"
             onClick={() => setCurrentFolderId(currentFolder?.parent_id || null)}
@@ -341,7 +342,7 @@ const DashboardPage = () => {
         <button
           type="button"
           onClick={() => setIsCreateOpen(true)}
-          className="group flex min-h-[264px] flex-col items-center justify-center rounded border border-dashed border-white/10 bg-surface-container-low transition hover:border-primary/50"
+          className="group flex min-h-[170px] flex-col items-center justify-center rounded border border-dashed border-white/10 bg-surface-container-low transition hover:border-primary/50 sm:min-h-[220px] md:min-h-[264px]"
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 transition group-hover:scale-110">
             <span className="material-symbols-outlined text-3xl text-primary">add_circle</span>
@@ -407,7 +408,7 @@ const DashboardPage = () => {
                     setConfirmDelete({ type: "folder", id: folder.id, name: folder.name });
                   }}
                   title="Delete folder"
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex h-7 w-7 items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 hover:text-red-300"
+                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded bg-red-500/20 text-red-400 opacity-100 transition-opacity hover:bg-red-500/40 hover:text-red-300 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
                 >
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                 </button>
@@ -467,8 +468,8 @@ const DashboardPage = () => {
                         ))}
                       </div>
                     ) : null}
-                    <div className="mt-4 flex items-center justify-between text-xs text-on-surface-variant">
-                      <span>Owner: <HighlightText value={document.owner.email} query={activeQuery} /></span>
+                    <div className="mt-4 flex flex-col items-start gap-1 text-xs text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
+                      <span className="min-w-0 max-w-full truncate">Owner: <HighlightText value={document.owner.email} query={activeQuery} /></span>
                       <span>{new Date(document.updatedAt).toLocaleDateString()}</span>
                     </div>
                   </div>
@@ -510,7 +511,7 @@ const DashboardPage = () => {
                       setConfirmDelete({ type: "doc", id: document.id, title: document.title });
                     }}
                     title="Delete document"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex h-7 w-7 items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 hover:text-red-300"
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded bg-red-500/20 text-red-400 opacity-100 transition-opacity hover:bg-red-500/40 hover:text-red-300 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <span className="material-symbols-outlined text-[16px]">delete</span>
                   </button>
@@ -521,7 +522,7 @@ const DashboardPage = () => {
         )}
       </div>
 
-      <div className="mt-12 flex items-center gap-4 border-t border-white/5 py-6">
+      <div className="mt-10 flex items-start gap-4 border-t border-white/5 py-6 md:mt-12 md:items-center">
         <div className="h-12 w-1 bg-primary" />
         <div>
           <h4 className="text-sm font-bold tracking-tight text-white">System Status: Operational</h4>
@@ -533,8 +534,8 @@ const DashboardPage = () => {
 
       {/* ── Create Document Modal ─────────────────────────────── */}
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4">
-          <div className="editorial-panel w-full max-w-lg rounded-lg border border-outline-variant/10 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 px-0 sm:items-center sm:px-4">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:rounded-lg sm:p-6">
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">New Entry</p>
@@ -592,11 +593,11 @@ const DashboardPage = () => {
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setIsCreateOpen(false)} className="emerald-muted-button">
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
+                <button type="button" onClick={() => setIsCreateOpen(false)} className="emerald-muted-button w-full sm:w-auto">
                   Cancel
                 </button>
-                <button type="submit" disabled={submitting} className="emerald-primary-button">
+                <button type="submit" disabled={submitting} className="emerald-primary-button w-full sm:w-auto">
                   {submitting ? "Creating..." : "Create Document"}
                 </button>
               </div>
@@ -607,8 +608,8 @@ const DashboardPage = () => {
 
       {/* ── Create Folder Modal ───────────────────────────────── */}
       {isCreateFolderOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4">
-          <div className="editorial-panel w-full max-w-lg rounded-lg border border-outline-variant/10 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 px-0 sm:items-center sm:px-4">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:rounded-lg sm:p-6">
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">New Folder</p>
@@ -635,11 +636,11 @@ const DashboardPage = () => {
                   required
                 />
               </div>
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setIsCreateFolderOpen(false)} className="emerald-muted-button">
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
+                <button type="button" onClick={() => setIsCreateFolderOpen(false)} className="emerald-muted-button w-full sm:w-auto">
                   Cancel
                 </button>
-                <button type="submit" disabled={submitting} className="emerald-primary-button">
+                <button type="submit" disabled={submitting} className="emerald-primary-button w-full sm:w-auto">
                   {submitting ? "Creating..." : "Create Folder"}
                 </button>
               </div>
@@ -650,8 +651,8 @@ const DashboardPage = () => {
 
       {/* ── Delete Confirmation Modal ─────────────────────────── */}
       {confirmDelete ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 px-4">
-          <div className="editorial-panel w-full max-w-md rounded-lg border border-red-500/20 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/80 px-0 sm:items-center sm:px-4">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-lg border border-red-500/20 p-4 shadow-2xl sm:rounded-lg sm:p-6">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
                 <span className="material-symbols-outlined text-red-400">warning</span>
@@ -680,11 +681,11 @@ const DashboardPage = () => {
               <p className="mb-4 text-sm text-red-400">{deleteError}</p>
             )}
 
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
                 onClick={() => { setConfirmDelete(null); setDeleteError(""); }}
-                className="emerald-muted-button"
+                className="emerald-muted-button w-full sm:w-auto"
                 disabled={deleting}
               >
                 Cancel
@@ -693,7 +694,7 @@ const DashboardPage = () => {
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={deleting}
-                className="flex items-center gap-2 rounded bg-red-500/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded bg-red-500/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50 sm:w-auto"
               >
                 <span className="material-symbols-outlined text-sm">delete</span>
                 {deleting ? "Deleting..." : `Delete ${confirmDelete.type === "doc" ? "Document" : "Folder"}`}

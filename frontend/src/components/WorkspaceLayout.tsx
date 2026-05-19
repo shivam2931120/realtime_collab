@@ -26,6 +26,10 @@ const navItems = [
   { to: "/settings", icon: "settings", label: "Settings" },
 ];
 
+const mobileNavItems = navItems.filter((item) =>
+  ["Workspace", "Discover", "Library", "Team", "Settings"].includes(item.label),
+);
+
 const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,11 +86,11 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
 
   return (
     <div className="min-h-screen bg-background text-on-background">
-      <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-surface px-6 text-sm font-medium tracking-tight">
-        <div className="flex items-center gap-8">
+      <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-surface px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
+        <div className="flex items-center gap-3 md:gap-8">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" className="h-8 object-contain" />
-            <span className="text-xl font-bold uppercase tracking-tighter text-white">Editorial</span>
+            <img src="/logo.png" alt="Logo" className="h-7 object-contain sm:h-8" />
+            <span className="text-base font-bold uppercase tracking-tighter text-white sm:text-xl">Editorial</span>
           </div>
           <div className="hidden items-center rounded-lg border border-white/5 bg-surface-container-low px-3 py-1.5 md:flex">
             <span className="material-symbols-outlined text-sm text-on-surface-variant">search</span>
@@ -100,7 +104,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4">
           <NotificationMenu />
           <button
             type="button"
@@ -122,11 +126,11 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
           <button
             type="button"
             onClick={handleLogout}
-            className="flex h-8 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-[#a3a3a3] transition-colors duration-200 hover:bg-[#201f1f] hover:text-white"
+            className="flex h-8 items-center justify-center gap-2 rounded px-2 text-sm font-semibold text-[#a3a3a3] transition-colors duration-200 hover:bg-[#201f1f] hover:text-white sm:px-3"
             title="Sign out"
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
-            <span>Sign Out</span>
+            <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>
       </header>
@@ -194,20 +198,20 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
         </aside>
 
         <main
-          className={`min-h-screen flex-1 bg-surface-container-lowest p-6 transition-[margin] duration-200 md:p-10 ${
+          className={`min-h-screen flex-1 bg-surface-container-lowest px-4 pb-24 pt-6 transition-[margin] duration-200 sm:px-6 md:p-10 ${
             sidebarCollapsed ? "md:ml-20" : "md:ml-64"
           }`}
         >
-          <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+          <div className="mb-8 flex flex-col justify-between gap-5 md:mb-12 md:flex-row md:items-end md:gap-6">
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-primary">
                 {pageLabel}
               </p>
-              <h1 className="text-4xl font-extrabold tracking-tighter text-white md:text-5xl">
+              <h1 className="text-3xl font-extrabold tracking-tighter text-white sm:text-4xl md:text-5xl">
                 {title}
               </h1>
               <p className="mt-3 text-sm text-[#a3a3a3]">
-                Signed in as <span className="text-white">{email}</span>
+                Signed in as <span className="break-all text-white sm:break-normal">{email}</span>
               </p>
             </div>
             {actions}
@@ -215,6 +219,23 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
 
           {children}
         </main>
+
+        <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-white/10 bg-[#0e0e0e]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5 shadow-2xl backdrop-blur md:hidden">
+          {mobileNavItems.map((item) => (
+            <NavLink
+              key={item.label}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex min-w-0 flex-col items-center gap-0.5 rounded px-1 py-2 text-[10px] font-bold uppercase tracking-tight transition ${
+                  isActive ? "bg-primary/15 text-primary" : "text-[#a3a3a3] active:bg-white/10"
+                }`
+              }
+            >
+              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+              <span className="max-w-full truncate">{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
       </div>
     </div>
   );

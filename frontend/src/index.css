@@ -191,3 +191,45 @@ body {
   background: rgba(32, 31, 31, 0.6);
   backdrop-filter: blur(12px);
 }
+
+@media (max-width: 640px) {
+  .editorial-editor,
+  .editorial-editor .ProseMirror {
+    min-height: 620px;
+  }
+
+  .editorial-editor h1 {
+    @apply mb-5 text-3xl;
+  }
+
+  .editorial-editor h2 {
+    @apply pt-5 text-xl;
+  }
+
+  .editorial-editor h3 {
+    @apply pt-3 text-lg;
+  }
+
+  .editorial-editor p,
+  .editorial-editor ul,
+  .editorial-editor ol {
+    @apply text-base leading-7;
+  }
+
+  .editorial-editor blockquote {
+    @apply my-6 pl-4;
+  }
+
+  .editorial-editor pre {
+    @apply p-4 text-xs;
+  }
+
+  .editorial-editor table {
+    @apply block max-w-full overflow-x-auto whitespace-nowrap text-xs;
+  }
+
+  .editorial-editor th,
+  .editorial-editor td {
+    @apply px-3 py-2;
+  }
+}
