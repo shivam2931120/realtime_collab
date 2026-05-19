@@ -828,6 +828,7 @@ const EditorPage = () => {
 
   const persistCollaborators = async (
     collaborators: Array<{ email: string; role: ShareRole }>,
+    notifyEmails: string[] = [],
   ) => {
     if (!id) {
       throw new Error("Document id missing");
@@ -835,6 +836,7 @@ const EditorPage = () => {
 
     const response = await api.put<{ document: DocItem }>(`/docs/${id}`, {
       collaborators,
+      notifyEmails,
     });
 
     setActiveDoc(response.data.document);
@@ -871,10 +873,10 @@ const EditorPage = () => {
         collaboratorsByEmail.set(email, { email, role: shareRole });
       });
 
-      await persistCollaborators([...collaboratorsByEmail.values()]);
+      await persistCollaborators([...collaboratorsByEmail.values()], emailsToShare);
       setShareEmails("");
       setShareRole("editor");
-      setShareNotice("Access updated. Email notifications are being sent in the background.");
+      setShareNotice("Access updated. Invite emails are being sent in the background.");
     } catch (requestError) {
       if (axios.isAxiosError(requestError)) {
         setError(requestError.response?.data?.message || "Share update nahi hua");

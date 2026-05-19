@@ -26,6 +26,7 @@ type ShareAccessUpdate = {
   role: "editor" | "viewer";
   email: string;
   previousRole?: "editor" | "viewer" | null;
+  reason: "granted" | "role_changed" | "reminder";
 };
 
 const normalizeRole = (role: unknown): "editor" | "viewer" =>
@@ -133,6 +134,16 @@ const parseShareTargets = async (input: unknown, ownerId: string) => {
       } as ShareTarget;
     })
     .filter(Boolean) as ShareTarget[];
+};
+
+const parseNotifyEmails = (input: unknown, ownerId: string) => {
+  if (!Array.isArray(input)) return new Set<string>();
+
+  return new Set(
+    input
+      .map((value) => normalizeEmail(value))
+      .filter((email) => isValidEmail(email) && userIdFromEmail(email) !== ownerId),
+  );
 };
 
 const getClientUrl = () => String(process.env.CLIENT_URL || "").trim().replace(/\/+$/, "") || "http://localhost:5173";
@@ -245,10 +256,14 @@ const createShareNotifications = async ({
   if (!accessUpdates.length) return;
 
   const notifications = accessUpdates.flatMap((item) => {
-    const recipientMessage = item.previousRole
+    const recipientMessage = item.reason === "reminder"
+      ? `${actorEmail} sent you an access reminder for "${documentTitle}" as ${item.role}.`
+      : item.previousRole
       ? `${actorEmail} updated your access to "${documentTitle}" as ${item.role}.`
       : `${actorEmail} shared "${documentTitle}" with you as ${item.role}.`;
-    const actorMessage = item.previousRole
+    const actorMessage = item.reason === "reminder"
+      ? `You resent access to "${documentTitle}" for ${item.email} as ${item.role}.`
+      : item.previousRole
       ? `You updated ${item.email}'s access to "${documentTitle}" from ${item.previousRole} to ${item.role}.`
       : `You shared "${documentTitle}" with ${item.email} as ${item.role}.`;
 
@@ -344,6 +359,7 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
         role: item.role,
         email: item.email,
         previousRole: null,
+        reason: "granted",
       })),
     });
 
@@ -524,6 +540,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
 
     if (wantsShareUpdate) {
       const parsedShareTargets = await parseShareTargets(req.body.collaborators, userId);
+      const notifyEmails = parseNotifyEmails(req.body.notifyEmails, userId);
       const parsedCollaborators = parsedShareTargets.filter((item) => item.userId) as Array<
         ShareTarget & { userId: string }
       >;
@@ -561,14 +578,25 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
 
       nextCollaborators = parsedCollaborators.map((c) => ({ user_id: c.userId, role: c.role }));
 
-      const accessUpdates = parsedCollaborators
-        .map((collaborator) => ({
-          user: collaborator.userId,
-          role: collaborator.role,
-          email: collaborator.email,
-          previousRole: existingRoleById.get(collaborator.userId) ?? null,
-        }))
-        .filter((collaborator) => collaborator.previousRole !== collaborator.role);
+      const accessUpdates = parsedCollaborators.flatMap((collaborator) => {
+        const previousRole = existingRoleById.get(collaborator.userId) ?? null;
+        const explicitInvite = notifyEmails.has(collaborator.email);
+        const roleChanged = previousRole !== collaborator.role;
+
+        if (!roleChanged && !explicitInvite) {
+          return [];
+        }
+
+        return [
+          {
+            user: collaborator.userId,
+            role: collaborator.role,
+            email: collaborator.email,
+            previousRole,
+            reason: !previousRole ? "granted" : roleChanged ? "role_changed" : "reminder",
+          } satisfies ShareAccessUpdate,
+        ];
+      });
 
       const actorEmail = auth.email;
 

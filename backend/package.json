@@ -10,7 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc --ignoreDeprecations 5.0",
     "start": "node dist/server.js",
-    "smtp:verify": "tsx ./scripts/verify-smtp.ts"
+    "smtp:verify": "tsx ./scripts/verify-smtp.ts",
+    "smtp:test": "tsx ./scripts/send-test-email.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.3",
