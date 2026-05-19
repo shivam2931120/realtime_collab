@@ -6,6 +6,7 @@ import { isMissingTableError } from "../utils/dbErrors";
 import { invalidateCachePrefix, publishEvent } from "../utils/redis";
 import { emailFromUserId, isValidEmail, normalizeEmail, userIdFromEmail } from "../utils/userIdentity";
 import { maybeCreateAutomaticVersion } from "../utils/documentVersions";
+import { sendDocumentSharedEmail, sendMail } from "../utils/mailer";
 
 // For notifications, we insert into Supabase directly instead of Mongoose.
 
@@ -18,6 +19,13 @@ type ShareTarget = {
   email: string;
   role: "editor" | "viewer";
   userId?: string;
+};
+
+type ShareAccessUpdate = {
+  user: string;
+  role: "editor" | "viewer";
+  email: string;
+  previousRole?: "editor" | "viewer" | null;
 };
 
 const normalizeRole = (role: unknown): "editor" | "viewer" =>
@@ -127,71 +135,156 @@ const parseShareTargets = async (input: unknown, ownerId: string) => {
     .filter(Boolean) as ShareTarget[];
 };
 
-import { sendDocumentSharedEmail } from "../utils/mailer";
-
 const getClientUrl = () => String(process.env.CLIENT_URL || "").trim().replace(/\/+$/, "") || "http://localhost:5173";
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const maskEmail = (email: string) => {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return email;
+  return `${local.slice(0, 2)}***@${domain}`;
+};
+
+const describeMailResult = (result: Awaited<ReturnType<typeof sendMail>>) => {
+  if (result.skipped) return "skipped";
+  const accepted = result.accepted.length ? result.accepted.map(maskEmail).join(",") : "none";
+  const rejected = result.rejected.length ? result.rejected.map(maskEmail).join(",") : "none";
+  return `messageId=${result.messageId || "unknown"} accepted=${accepted} rejected=${rejected}`;
+};
+
+const runInBackground = (label: string, task: () => Promise<void>) => {
+  setImmediate(() => {
+    void task().catch((error) => console.error(label, error));
+  });
+};
+
+const queueShareEmails = ({
+  documentId,
+  documentTitle,
+  actorEmail,
+  accessUpdates,
+}: {
+  documentId: string;
+  documentTitle: string;
+  actorEmail: string;
+  accessUpdates: ShareAccessUpdate[];
+}) => {
+  if (!accessUpdates.length) return;
+
+  const documentUrl = `${getClientUrl()}/editor/${documentId}`;
+  const actorEmailKey = actorEmail.toLowerCase();
+  const sentTo = new Set<string>();
+  const targets = accessUpdates.filter((target) => {
+    const emailKey = target.email.toLowerCase();
+    if (!target.email || sentTo.has(emailKey) || emailKey === actorEmailKey) {
+      return false;
+    }
+    sentTo.add(emailKey);
+    return true;
+  });
+
+  if (!targets.length) return;
+
+  runInBackground("Share email delivery failed", async () => {
+    const deliveryTasks = targets.map((target) =>
+      sendDocumentSharedEmail({
+        to: target.email,
+        actorEmail,
+        documentTitle,
+        documentUrl,
+        role: target.role,
+      })
+        .then((result) => {
+          console.info(`Share email to ${maskEmail(target.email)} ${describeMailResult(result)}`);
+        })
+        .catch((error) => console.error(`Failed to send share email to ${maskEmail(target.email)}`, error)),
+    );
+
+    if (isValidEmail(actorEmail)) {
+      const sharedListText = targets.map((target) => `- ${target.email} (${target.role})`).join("\n");
+      const sharedListHtml = targets
+        .map((target) => `<li>${escapeHtml(maskEmail(target.email))} (${target.role})</li>`)
+        .join("");
+      deliveryTasks.push(
+        sendMail({
+          to: actorEmail,
+          subject: `Share confirmed: ${documentTitle}`,
+          text: `Your share update for "${documentTitle}" was submitted.\n\nAccess granted or updated:\n${sharedListText}\n\nOpen: ${documentUrl}`,
+          html: `<p>Your share update for <strong>${escapeHtml(documentTitle)}</strong> was submitted.</p><p>Access granted or updated:</p><ul>${sharedListHtml}</ul><p><a href="${escapeHtml(documentUrl)}">Open document</a></p>`,
+        })
+          .then((result) => {
+            console.info(`Share confirmation to ${maskEmail(actorEmail)} ${describeMailResult(result)}`);
+          })
+          .catch((error) => console.error(`Failed to send share confirmation to ${maskEmail(actorEmail)}`, error)),
+      );
+    }
+
+    await Promise.all(deliveryTasks);
+  });
+};
 
 const createShareNotifications = async ({
   documentId,
   documentTitle,
   actorId,
   actorEmail,
-  addedCollaborators,
+  accessUpdates,
 }: {
   documentId: string;
   documentTitle: string;
   actorId: string;
   actorEmail: string;
-  addedCollaborators: Array<{ user: string; role: "editor" | "viewer"; email?: string }>;
+  accessUpdates: ShareAccessUpdate[];
 }) => {
-  if (!addedCollaborators.length) return;
+  if (!accessUpdates.length) return;
 
-  const notifications = addedCollaborators.flatMap((item) => [
-    {
-      recipient_id: item.user,
-      sender_id: actorId,
-      document_id: documentId,
-      type: "document_shared",
-      message: `${actorEmail} shared "${documentTitle}" with you as ${item.role}.`,
-    },
-    {
-      recipient_id: actorId,
-      sender_id: actorId,
-      document_id: documentId,
-      type: "document_shared",
-      message: `You shared "${documentTitle}" with ${item.email ?? "a collaborator"} as ${item.role}.`,
-    }
-  ]);
+  const notifications = accessUpdates.flatMap((item) => {
+    const recipientMessage = item.previousRole
+      ? `${actorEmail} updated your access to "${documentTitle}" as ${item.role}.`
+      : `${actorEmail} shared "${documentTitle}" with you as ${item.role}.`;
+    const actorMessage = item.previousRole
+      ? `You updated ${item.email}'s access to "${documentTitle}" from ${item.previousRole} to ${item.role}.`
+      : `You shared "${documentTitle}" with ${item.email} as ${item.role}.`;
 
-  await supabase.from("notifications").insert(notifications);
+    return [
+      {
+        recipient_id: item.user,
+        sender_id: actorId,
+        document_id: documentId,
+        type: "document_shared",
+        message: recipientMessage,
+      },
+      {
+        recipient_id: actorId,
+        sender_id: actorId,
+        document_id: documentId,
+        type: "document_shared",
+        message: actorMessage,
+      },
+    ];
+  });
 
-  const documentUrl = `${getClientUrl()}/editor/${documentId}`;
-  const sentTo = new Set<string>();
-  const actorEmailKey = actorEmail.toLowerCase();
-
-  const allTargets: Array<{ email: string; role: "editor" | "viewer" }> = [
-    ...addedCollaborators
-      .filter((target): target is { user: string; role: "editor" | "viewer"; email: string } =>
-        Boolean(target.email),
-      )
-      .map((target) => ({ email: target.email, role: target.role })),
-  ];
-
-  for (const target of allTargets) {
-    const emailKey = target.email.toLowerCase();
-    if (!target.email || sentTo.has(emailKey) || emailKey === actorEmailKey) {
-      continue;
-    }
-
-    sentTo.add(emailKey);
-    await sendDocumentSharedEmail({
-      to: target.email,
-      actorEmail,
-      documentTitle,
-      documentUrl,
-      role: target.role,
-    }).catch((err) => console.error("Failed to send share email", err));
+  const { error } = await supabase.from("notifications").insert(notifications);
+  if (error) {
+    console.error("Share notification insert failed", error);
   }
+
+  queueShareEmails({
+    documentId,
+    documentTitle,
+    actorEmail,
+    accessUpdates,
+  });
+};
+
+const queueShareNotifications = (payload: Parameters<typeof createShareNotifications>[0]) => {
+  runInBackground("Share notification/email task failed", () => createShareNotifications(payload));
 };
 
 export const createDocument = async (req: AuthRequest, res: Response) => {
@@ -224,46 +317,52 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
         user_id: c.userId,
         role: c.role,
       }));
-      await supabase.from("document_collaborators").insert(collabsToInsert);
+      const { error: collaboratorInsertError } = await supabase.from("document_collaborators").insert(collabsToInsert);
+      if (collaboratorInsertError) throw collaboratorInsertError;
     }
 
     // Load full doc
-    const { data: fullDoc } = await supabase
+    const { data: fullDoc, error: fullDocError } = await supabase
       .from("documents")
       .select("*, document_collaborators(*)")
       .eq("id", docData.id)
       .single();
 
+    if (fullDocError || !fullDoc) throw fullDocError || new Error("Created document reload failed");
+
     const [enrichedDoc] = await attachTagsToDocuments(await enrichWithUserEmails([fullDoc]));
 
     const actorEmail = auth.email;
 
-    await createShareNotifications({
+    queueShareNotifications({
       documentId: docData.id,
       documentTitle: docData.title,
       actorId: userId,
       actorEmail: actorEmail,
-      addedCollaborators: collaborators.map((item) => ({
+      accessUpdates: collaborators.map((item) => ({
         user: item.userId,
         role: item.role,
         email: item.email,
+        previousRole: null,
       })),
     });
 
-    await trackDocumentEvent({
-      documentId: docData.id,
-      actorId: userId,
-      eventType: "document_created",
-      metadata: { collaborators: collaborators.length },
-    });
+    runInBackground("Document create side effects failed", async () => {
+      await trackDocumentEvent({
+        documentId: docData.id,
+        actorId: userId,
+        eventType: "document_created",
+        metadata: { collaborators: collaborators.length },
+      });
 
-    await publishEvent("docs:mutations", {
-      action: "create",
-      documentId: docData.id,
-      actorId: userId,
+      await publishEvent("docs:mutations", {
+        action: "create",
+        documentId: docData.id,
+        actorId: userId,
+      });
+      await invalidateCachePrefix("search:");
+      await invalidateCachePrefix("popular-tags:");
     });
-    await invalidateCachePrefix("search:");
-    await invalidateCachePrefix("popular-tags:");
 
     return res.status(201).json({ document: shapeDocument(enrichedDoc, userId) });
   } catch (error) {
@@ -429,74 +528,100 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
         ShareTarget & { userId: string }
       >;
       
-      // Delete old ones and insert new ones
-      await supabase.from("document_collaborators").delete().eq("document_id", documentId);
+      const existingCollaborators = doc.document_collaborators || [];
+      const existingRoleById = new Map<string, "editor" | "viewer">(
+        existingCollaborators.map((c: any) => [c.user_id, normalizeRole(c.role)]),
+      );
+      const nextCollaboratorIds = new Set(parsedCollaborators.map((c) => c.userId));
+
       if (parsedCollaborators.length > 0) {
-        const collabsToInsert = parsedCollaborators.map((c) => ({
+        const collabsToUpsert = parsedCollaborators.map((c) => ({
           document_id: documentId,
           user_id: c.userId,
           role: c.role,
         }));
-        await supabase.from("document_collaborators").insert(collabsToInsert);
+        const { error: collaboratorUpsertError } = await supabase
+          .from("document_collaborators")
+          .upsert(collabsToUpsert, { onConflict: "document_id,user_id" });
+        if (collaboratorUpsertError) throw collaboratorUpsertError;
+      }
+
+      const removedCollaboratorIds = existingCollaborators
+        .map((c: any) => c.user_id)
+        .filter((existingId: string) => !nextCollaboratorIds.has(existingId));
+
+      if (removedCollaboratorIds.length > 0) {
+        const { error: collaboratorDeleteError } = await supabase
+          .from("document_collaborators")
+          .delete()
+          .eq("document_id", documentId)
+          .in("user_id", removedCollaboratorIds);
+        if (collaboratorDeleteError) throw collaboratorDeleteError;
       }
 
       nextCollaborators = parsedCollaborators.map((c) => ({ user_id: c.userId, role: c.role }));
 
-      const existingCollabIds = new Set(doc.document_collaborators?.map((c: any) => c.user_id));
-      const addedCollaborators = parsedCollaborators.filter((c) => !existingCollabIds.has(c.userId));
+      const accessUpdates = parsedCollaborators
+        .map((collaborator) => ({
+          user: collaborator.userId,
+          role: collaborator.role,
+          email: collaborator.email,
+          previousRole: existingRoleById.get(collaborator.userId) ?? null,
+        }))
+        .filter((collaborator) => collaborator.previousRole !== collaborator.role);
 
       const actorEmail = auth.email;
 
-      await createShareNotifications({
+      queueShareNotifications({
         documentId,
         documentTitle: updates.title || doc.title,
         actorId: userId,
         actorEmail: actorEmail,
-        addedCollaborators: addedCollaborators.map((item) => ({
-          user: item.userId,
-          role: item.role,
-          email: item.email,
-        })),
+        accessUpdates,
       });
 
-      await trackDocumentEvent({
-        documentId,
-        actorId: userId,
-        eventType: "document_shared",
-        metadata: { addedCollaborators: addedCollaborators.length },
+      runInBackground("Document share analytics failed", async () => {
+        await trackDocumentEvent({
+          documentId,
+          actorId: userId,
+          eventType: "document_shared",
+          metadata: { accessUpdates: accessUpdates.length, totalCollaborators: parsedCollaborators.length },
+        });
       });
     }
 
-    if (Object.keys(updates).length > 1) { // >1 because updated_at is always there
-      await supabase.from("documents").update(updates).eq("id", documentId);
+    if (Object.keys(updates).length > 1 || wantsShareUpdate) {
+      const { error: documentUpdateError } = await supabase.from("documents").update(updates).eq("id", documentId);
+      if (documentUpdateError) throw documentUpdateError;
 
-      await trackDocumentEvent({
-        documentId,
-        actorId: userId,
-        eventType: "document_updated",
-        metadata: {
-          fields: {
-            title: wantsTitleUpdate,
-            content: wantsContentUpdate,
-            folder: wantsFolderUpdate,
-            collaborators: wantsShareUpdate,
+      const mutationFields = {
+        title: wantsTitleUpdate,
+        content: wantsContentUpdate,
+        folder: wantsFolderUpdate,
+        collaborators: wantsShareUpdate,
+      };
+
+      runInBackground("Document update side effects failed", async () => {
+        await trackDocumentEvent({
+          documentId,
+          actorId: userId,
+          eventType: "document_updated",
+          metadata: {
+            fields: mutationFields,
           },
-        },
-      });
+        });
 
-      await publishEvent("docs:mutations", {
-        action: "update",
-        documentId,
-        actorId: userId,
-        fields: {
-          title: wantsTitleUpdate,
-          content: wantsContentUpdate,
-          folder: wantsFolderUpdate,
-          collaborators: wantsShareUpdate,
-        },
+        await publishEvent("docs:mutations", {
+          action: "update",
+          documentId,
+          actorId: userId,
+          fields: {
+            ...mutationFields,
+          },
+        });
+        await invalidateCachePrefix("search:");
+        await invalidateCachePrefix("popular-tags:");
       });
-      await invalidateCachePrefix("search:");
-      await invalidateCachePrefix("popular-tags:");
     }
 
     doc.title = updates.title || doc.title;

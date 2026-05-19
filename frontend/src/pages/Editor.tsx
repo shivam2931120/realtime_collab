@@ -174,6 +174,8 @@ const EditorPage = () => {
   const [shareEmails, setShareEmails] = useState("");
   const [shareRole, setShareRole] = useState<ShareRole>("editor");
   const [savingShare, setSavingShare] = useState(false);
+  const [shareNotice, setShareNotice] = useState("");
+  const [removingCollaboratorEmail, setRemovingCollaboratorEmail] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [savingTags, setSavingTags] = useState(false);
@@ -818,35 +820,61 @@ const EditorPage = () => {
     );
   };
 
+  const parseShareEmails = (value: string) =>
+    value
+      .split(/[\n,;]+/)
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+
+  const persistCollaborators = async (
+    collaborators: Array<{ email: string; role: ShareRole }>,
+  ) => {
+    if (!id) {
+      throw new Error("Document id missing");
+    }
+
+    const response = await api.put<{ document: DocItem }>(`/docs/${id}`, {
+      collaborators,
+    });
+
+    setActiveDoc(response.data.document);
+    upsertDoc(response.data.document);
+    return response.data.document;
+  };
+
   const handleShare = async () => {
     if (!id || !activeDoc) {
       return;
     }
 
+    const emailsToShare = parseShareEmails(shareEmails);
+    if (!emailsToShare.length) {
+      setShareNotice("Enter at least one collaborator email.");
+      return;
+    }
+
     setSavingShare(true);
+    setShareNotice("");
+    setError("");
 
     try {
-      const collaborators = [
-        ...activeDoc.collaborators.map((item) => ({
+      const collaboratorsByEmail = new Map<string, { email: string; role: ShareRole }>();
+
+      activeDoc.collaborators.forEach((item) => {
+        collaboratorsByEmail.set(item.email.toLowerCase(), {
           email: item.email,
           role: item.role,
-        })),
-        ...shareEmails
-          .split(",")
-          .map((email) => email.trim())
-          .filter(Boolean)
-          .map((email) => ({ email, role: shareRole })),
-      ];
-
-      const response = await api.put<{ document: DocItem }>(`/docs/${id}`, {
-        collaborators,
+        });
       });
 
-      setActiveDoc(response.data.document);
-      upsertDoc(response.data.document);
+      emailsToShare.forEach((email) => {
+        collaboratorsByEmail.set(email, { email, role: shareRole });
+      });
+
+      await persistCollaborators([...collaboratorsByEmail.values()]);
       setShareEmails("");
       setShareRole("editor");
-      setShareModalOpen(false);
+      setShareNotice("Access updated. Email notifications are being sent in the background.");
     } catch (requestError) {
       if (axios.isAxiosError(requestError)) {
         setError(requestError.response?.data?.message || "Share update nahi hua");
@@ -855,6 +883,33 @@ const EditorPage = () => {
       }
     } finally {
       setSavingShare(false);
+    }
+  };
+
+  const removeCollaborator = async (email: string) => {
+    if (!activeDoc || activeDoc.role !== "owner") {
+      return;
+    }
+
+    setRemovingCollaboratorEmail(email);
+    setShareNotice("");
+    setError("");
+
+    try {
+      const collaborators = activeDoc.collaborators
+        .filter((item) => item.email.toLowerCase() !== email.toLowerCase())
+        .map((item) => ({ email: item.email, role: item.role }));
+
+      await persistCollaborators(collaborators);
+      setShareNotice(`${email} was removed from this document.`);
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Collaborator remove nahi hua");
+      } else {
+        setError("Collaborator remove nahi hua");
+      }
+    } finally {
+      setRemovingCollaboratorEmail("");
     }
   };
 
@@ -1986,6 +2041,11 @@ const EditorPage = () => {
                   placeholder="Existing users: alice@lab.io, bob@lab.io"
                 />
               </div>
+              {shareNotice ? (
+                <div className="rounded border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-primary">
+                  {shareNotice}
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="share-role">
                   Access
@@ -2016,16 +2076,31 @@ const EditorPage = () => {
               <div className="rounded border border-white/5 bg-surface p-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current collaborators</p>
                 <div className="mt-3 space-y-2">
-                  {activeDoc?.collaborators.length ? (
-                    activeDoc.collaborators.map((item) => (
-                      <div key={`${item.id}-${item.email}`} className="flex items-center justify-between rounded bg-surface-container-high p-3 text-sm text-white">
-                        <span>{item.email}</span>
-                        <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(item.role)}`}>
-                          {item.role}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
+	                  {activeDoc?.collaborators.length ? (
+	                    activeDoc.collaborators.map((item) => (
+	                      <div key={`${item.id}-${item.email}`} className="flex items-center justify-between gap-3 rounded bg-surface-container-high p-3 text-sm text-white">
+	                        <span className="min-w-0 truncate">{item.email}</span>
+	                        <div className="flex shrink-0 items-center gap-2">
+	                          <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(item.role)}`}>
+	                            {item.role}
+	                          </span>
+	                          {activeDoc?.role === "owner" ? (
+	                            <button
+	                              type="button"
+	                              onClick={() => removeCollaborator(item.email).catch(console.error)}
+	                              disabled={savingShare || removingCollaboratorEmail === item.email}
+	                              title={`Remove ${item.email}`}
+	                              className="flex h-8 w-8 items-center justify-center rounded border border-red-500/20 bg-red-500/10 text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+	                            >
+	                              <span className="material-symbols-outlined text-[17px]">
+	                                {removingCollaboratorEmail === item.email ? "hourglass_empty" : "person_remove"}
+	                              </span>
+	                            </button>
+	                          ) : null}
+	                        </div>
+	                      </div>
+	                    ))
+	                  ) : (
                     <div className="text-sm text-on-surface-variant">No collaborators added yet.</div>
                   )}
                 </div>
