@@ -1194,6 +1194,15 @@ const EditorPage = () => {
       disabled: false,
     },
   ];
+  const mobileToolbarLabels = new Set([
+    "Bold",
+    "Italic",
+    "Underline",
+    "Bullets",
+    "Numbers",
+    "Link",
+    "Find and replace",
+  ]);
   const tableToolItems = [
     { icon: "keyboard_arrow_left", label: "Column before", action: () => editor?.chain().focus().addColumnBefore().run() },
     { icon: "keyboard_arrow_right", label: "Column after", action: () => editor?.chain().focus().addColumnAfter().run() },
@@ -1481,9 +1490,11 @@ const EditorPage = () => {
           }`}
         >
           <header className="sticky top-0 z-30 flex min-h-16 flex-col items-stretch justify-between gap-3 border-b border-white/5 bg-surface-container-lowest px-4 py-3 md:h-16 md:flex-row md:items-center md:px-8 md:py-0">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3 md:gap-4">
-              <div className="min-w-0 flex-1 md:flex-none">
-                <h1 className="truncate text-base font-bold tracking-tight text-on-surface sm:text-lg">{activeDoc?.title}</h1>
+            <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center md:gap-4">
+              <div className="min-w-0 flex-1">
+                <h1 className="line-clamp-2 break-words text-base font-bold leading-snug tracking-tight text-on-surface sm:text-lg md:line-clamp-1">
+                  {activeDoc?.title}
+                </h1>
                 <p className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3] sm:block">
                   Doc ID: {id}
                 </p>
@@ -1492,7 +1503,7 @@ const EditorPage = () => {
                     {tags.map((tag) => (
                       <span
                         key={tag}
-                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        className="max-w-full break-all rounded-full px-2 py-0.5 text-[10px] font-semibold"
                         style={{
                           backgroundColor: `hsl(${tagHue(tag)} 70% 45% / 0.16)`,
                           color: `hsl(${tagHue(tag)} 75% 75%)`,
@@ -1504,56 +1515,61 @@ const EditorPage = () => {
                   </div>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2 rounded border border-white/5 bg-surface-container-high px-2 py-0.5">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    saveStatus === "saved"
-                      ? "bg-primary shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                      : saveStatus === "error"
-                        ? "bg-red-400"
-                        : "bg-yellow-300"
-                  }`}
-                />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">{saveStatusLabel}</span>
-              </div>
-              {activePresence.length > 0 && (
-                <div className="hidden items-center gap-3 sm:flex lg:ml-4">
-                  <div className="flex -space-x-2 overflow-hidden">
-                    {activePresence.map((u) => (
-                      <div
-                        key={u.sessionId}
-                        title={`${u.email || "Anonymous"} · ${u.idle ? "idle" : "active"} · ${formatLastSeen(u.lastSeen)}`}
-                        className={`inline-block h-6 w-6 rounded-full ring-2 ring-surface-container-lowest flex items-center justify-center text-[10px] font-bold text-white uppercase ${
-                          u.idle ? "bg-surface-container-highest opacity-60" : "bg-primary/80"
-                        }`}
-                      >
-                        {(u.email || "A")[0]}
-                      </div>
-                    ))}
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    {activePresence.length} online{idleCount ? ` · ${idleCount} idle` : ""}
-                  </span>
+
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 rounded border border-white/5 bg-surface-container-high px-2 py-0.5">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      saveStatus === "saved"
+                        ? "bg-primary shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                        : saveStatus === "error"
+                          ? "bg-red-400"
+                          : "bg-yellow-300"
+                    }`}
+                  />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">{saveStatusLabel}</span>
                 </div>
-              )}
-              {activeDoc?.role ? (
-                <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(activeDoc.role)}`}>
-                  {activeDoc.role}
+                {activeDoc?.role ? (
+                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(activeDoc.role)}`}>
+                    {activeDoc.role}
+                  </span>
+                ) : null}
+                <span className="hidden rounded border border-white/5 bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant md:inline-flex">
+                  {wordCount} words · {characterCount} chars
                 </span>
-              ) : null}
-              <span className="hidden rounded border border-white/5 bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant md:inline-flex">
-                {wordCount} words · {characterCount} chars
-              </span>
+                {activePresence.length > 0 && (
+                  <div className="hidden items-center gap-3 sm:flex lg:ml-2">
+                    <div className="flex -space-x-2 overflow-hidden">
+                      {activePresence.map((u) => (
+                        <div
+                          key={u.sessionId}
+                          title={`${u.email || "Anonymous"} · ${u.idle ? "idle" : "active"} · ${formatLastSeen(u.lastSeen)}`}
+                          className={`inline-block h-6 w-6 rounded-full ring-2 ring-surface-container-lowest flex items-center justify-center text-[10px] font-bold text-white uppercase ${
+                            u.idle ? "bg-surface-container-highest opacity-60" : "bg-primary/80"
+                          }`}
+                        >
+                          {(u.email || "A")[0]}
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {activePresence.length} online{idleCount ? ` · ${idleCount} idle` : ""}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center sm:justify-end md:gap-3">
+            <div className="grid w-full grid-cols-[1fr_1fr_1fr_auto] gap-1.5 sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-2 md:gap-3">
               <button
                 type="button"
                 onClick={() => setMobilePanel("comments")}
-                className="emerald-muted-button flex-1 sm:flex-none xl:hidden"
+                className="emerald-muted-button min-w-0 px-2 text-[11px] sm:flex-none sm:px-4 sm:text-sm xl:hidden"
+                aria-label="Comments"
+                title="Comments"
               >
                 <span className="material-symbols-outlined text-sm">chat_bubble</span>
-                Comments
+                <span className="hidden min-[370px]:inline" aria-hidden="true">Comments</span>
               </button>
               <button
                 type="button"
@@ -1561,18 +1577,27 @@ const EditorPage = () => {
                   loadVersions();
                   setMobilePanel("versions");
                 }}
-                className="emerald-muted-button flex-1 sm:flex-none xl:hidden"
+                className="emerald-muted-button min-w-0 px-2 text-[11px] sm:flex-none sm:px-4 sm:text-sm xl:hidden"
+                aria-label="Versions"
+                title="Versions"
               >
                 <span className="material-symbols-outlined text-sm">history</span>
-                Versions
+                <span className="hidden min-[370px]:inline" aria-hidden="true">Versions</span>
               </button>
-              <button type="button" onClick={() => setShareModalOpen(true)} className="emerald-primary-button flex-1 sm:flex-none">
-                Share
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(true)}
+                className="emerald-primary-button min-w-0 px-2 text-[11px] sm:flex-none sm:px-4 sm:text-sm"
+                aria-label="Share"
+                title="Share"
+              >
+                <span className="material-symbols-outlined text-sm sm:hidden">ios_share</span>
+                <span className="hidden min-[340px]:inline" aria-hidden="true">Share</span>
               </button>
               <button
                 type="button"
                 onClick={loadDocument}
-                className="rounded p-2 text-[#a3a3a3] transition hover:bg-[#201f1f] hover:text-white"
+                className="flex h-9 w-9 items-center justify-center rounded text-[#a3a3a3] transition hover:bg-[#201f1f] hover:text-white"
                 title="Refresh document"
               >
                 <span className="material-symbols-outlined">refresh</span>
@@ -1614,7 +1639,7 @@ const EditorPage = () => {
           >
             <div className={`mx-auto w-full min-w-0 flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[800px]"}`}>
               <div className="sticky top-2 z-40 mx-auto mb-6 flex flex-col items-center justify-center gap-2 md:top-4 md:mb-12">
-                <div className="editorial-editor-toolbar flex w-full max-w-[calc(100vw-1.5rem)] flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded border border-white/10 bg-surface-container-highest/90 px-2 py-2 shadow-2xl backdrop-blur-xl sm:max-w-full sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-4">
+                <div className="editorial-editor-toolbar flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-2 py-2 shadow-2xl backdrop-blur-xl sm:px-4">
                   <select
                     value={currentBlockStyle}
                     disabled={editorDisabled}
@@ -1628,7 +1653,10 @@ const EditorPage = () => {
                     <option value="h3">H3</option>
                   </select>
                   {toolbarItems.map((item, index) => (
-                    <div key={item.label} className="flex items-center">
+                    <div
+                      key={item.label}
+                      className={`items-center ${mobileToolbarLabels.has(item.label) ? "flex" : "hidden sm:flex"}`}
+                    >
                       <button
                         type="button"
                         title={item.label}
@@ -1651,7 +1679,7 @@ const EditorPage = () => {
                       title={`Align ${alignment}`}
                       disabled={editorDisabled}
                       onClick={() => editor?.chain().focus().setTextAlign(alignment).run()}
-                      className={editor?.isActive({ textAlign: alignment }) ? "active" : ""}
+                      className={`hidden sm:inline-flex ${editor?.isActive({ textAlign: alignment }) ? "active" : ""}`}
                     >
                       <span className="material-symbols-outlined text-lg">
                         {alignment === "left"
@@ -1669,7 +1697,7 @@ const EditorPage = () => {
                     title="Quote"
                     disabled={editorDisabled}
                     onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-                    className={editor?.isActive("blockquote") ? "active" : ""}
+                    className={`hidden sm:inline-flex ${editor?.isActive("blockquote") ? "active" : ""}`}
                   >
                     <span className="material-symbols-outlined text-lg">format_quote</span>
                   </button>
@@ -1678,11 +1706,12 @@ const EditorPage = () => {
                     title="Clear formatting"
                     disabled={editorDisabled}
                     onClick={clearFormatting}
+                    className="hidden sm:inline-flex"
                   >
                     <span className="material-symbols-outlined text-lg">format_clear</span>
                   </button>
                   <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block md:mx-2" />
-                  <div className="flex shrink-0 items-center gap-1" title="Text color">
+                  <div className="hidden shrink-0 items-center gap-1 sm:flex" title="Text color">
                     {textColorOptions.map((color) => (
                       <button
                         key={color.value}
@@ -1706,7 +1735,7 @@ const EditorPage = () => {
                       ×
                     </button>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1" title="Highlight color">
+                  <div className="hidden shrink-0 items-center gap-1 sm:flex" title="Highlight color">
                     {highlightColorOptions.map((color) => (
                       <button
                         key={color.value}
@@ -1733,7 +1762,7 @@ const EditorPage = () => {
                 </div>
 
                 {isTableActive ? (
-                  <div className="editorial-editor-toolbar flex w-full max-w-[calc(100vw-1.5rem)] flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded border border-white/10 bg-surface-container-highest/90 px-3 py-2 shadow-xl backdrop-blur-xl sm:max-w-full sm:flex-wrap sm:justify-center sm:overflow-visible">
+                  <div className="editorial-editor-toolbar flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-3 py-2 shadow-xl backdrop-blur-xl">
                     {tableToolItems.map((item) => (
                       <button
                         key={item.label}
@@ -1832,7 +1861,7 @@ const EditorPage = () => {
                 ) : null}
 
                 {canTransformSelection ? (
-                  <div className="flex w-full max-w-[calc(100vw-1.5rem)] flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded border border-white/10 bg-surface-container-highest/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-xl sm:w-auto sm:max-w-full sm:flex-wrap sm:justify-center sm:overflow-visible">
+                  <div className="flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-xl sm:w-auto">
                     <span className="shrink-0 px-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Selection</span>
                     <button
                       type="button"

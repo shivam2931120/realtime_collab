@@ -19,10 +19,13 @@ body {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .material-symbols-outlined {
@@ -66,11 +69,13 @@ body {
 .editorial-editor {
   min-height: 900px;
   outline: none;
+  overflow-wrap: anywhere;
 }
 
 .editorial-editor .ProseMirror {
   min-height: 900px;
   outline: none;
+  overflow-wrap: anywhere;
 }
 
 .editorial-editor h1 {
@@ -107,7 +112,7 @@ body {
 }
 
 .editorial-editor a {
-  @apply font-semibold text-[#047857] underline underline-offset-4;
+  @apply break-words font-semibold text-[#047857] underline underline-offset-4;
 }
 
 .editorial-editor code {
@@ -176,7 +181,7 @@ body {
 }
 
 .editorial-editor-toolbar button {
-  @apply rounded p-1.5 text-white transition hover:bg-white/10;
+  @apply shrink-0 rounded p-1 text-white transition hover:bg-white/10 sm:p-1.5;
 }
 
 .editorial-editor-toolbar button.active {

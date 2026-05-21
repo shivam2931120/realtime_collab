@@ -394,7 +394,7 @@ const DashboardPage = () => {
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-highest transition group-hover:scale-110">
                     <span className="material-symbols-outlined text-4xl text-[#a3a3a3]">folder</span>
                   </div>
-                  <p className="mt-4 text-sm font-bold tracking-tight text-white">{folder.name}</p>
+                  <p className="mt-4 max-w-full break-words px-4 text-center text-sm font-bold tracking-tight text-white">{folder.name}</p>
                   <span className="mt-2 rounded bg-surface-container-low px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">
                     Folder
                   </span>
@@ -439,14 +439,14 @@ const DashboardPage = () => {
                   <div className="h-32 bg-gradient-to-br from-surface-container-high via-[#23322b] to-surface-container-low opacity-80" />
                   <div className="p-4">
                     <div className="mb-2 flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-bold tracking-tight text-white">
+                      <h3 className="min-w-0 break-words pr-8 text-lg font-bold tracking-tight text-white md:pr-0">
                         <HighlightText value={document.title} query={activeQuery} />
                       </h3>
                       <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest shrink-0 ${roleBadgeClass(document.role)}`}>
                         {document.role}
                       </span>
                     </div>
-                    <p className="min-h-[48px] text-sm text-on-surface-variant line-clamp-2">
+                    <p className="min-h-[48px] break-words text-sm text-on-surface-variant line-clamp-2">
                       <HighlightText
                         value={stripContent(document.content) || "No content yet. Open the document to start writing."}
                         query={activeQuery}
@@ -469,7 +469,7 @@ const DashboardPage = () => {
                       </div>
                     ) : null}
                     <div className="mt-4 flex flex-col items-start gap-1 text-xs text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
-                      <span className="min-w-0 max-w-full truncate">Owner: <HighlightText value={document.owner.email} query={activeQuery} /></span>
+                      <span className="min-w-0 max-w-full break-all">Owner: <HighlightText value={document.owner.email} query={activeQuery} /></span>
                       <span>{new Date(document.updatedAt).toLocaleDateString()}</span>
                     </div>
                   </div>

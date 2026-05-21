@@ -90,7 +90,9 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
         <div className="flex items-center gap-3 md:gap-8">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Logo" className="h-7 object-contain sm:h-8" />
-            <span className="text-base font-bold uppercase tracking-tighter text-white sm:text-xl">Editorial</span>
+            <span className="hidden text-base font-bold uppercase tracking-tighter text-white min-[360px]:inline sm:text-xl">
+              Editorial
+            </span>
           </div>
           <div className="hidden items-center rounded-lg border border-white/5 bg-surface-container-low px-3 py-1.5 md:flex">
             <span className="material-symbols-outlined text-sm text-on-surface-variant">search</span>
@@ -220,19 +222,19 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
           {children}
         </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-white/10 bg-[#0e0e0e]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5 shadow-2xl backdrop-blur md:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-white/10 bg-[#0e0e0e]/95 px-1.5 pb-[env(safe-area-inset-bottom)] pt-1.5 shadow-2xl backdrop-blur md:hidden">
           {mobileNavItems.map((item) => (
             <NavLink
               key={item.label}
               to={item.to}
               className={({ isActive }) =>
-                `flex min-w-0 flex-col items-center gap-0.5 rounded px-1 py-2 text-[10px] font-bold uppercase tracking-tight transition ${
+                `flex min-w-0 flex-col items-center gap-0.5 rounded px-0.5 py-2 text-[9px] font-bold uppercase tracking-normal transition ${
                   isActive ? "bg-primary/15 text-primary" : "text-[#a3a3a3] active:bg-white/10"
                 }`
               }
             >
               <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-              <span className="max-w-full truncate">{item.label}</span>
+              <span className="max-w-full truncate max-[340px]:hidden">{item.label}</span>
             </NavLink>
           ))}
         </nav>
