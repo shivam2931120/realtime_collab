@@ -1,6 +1,6 @@
-# Realtime Collaboration Platform
+# Editorial
 
-Google Docs style collaborative editor built with:
+Realtime document collaboration and team inbox workspace built with:
 
 - React + Vite + TypeScript
 - Tailwind CSS
@@ -10,6 +10,7 @@ Google Docs style collaborative editor built with:
 - Supabase (Postgres)
 - Socket.io
 - Internal token-based email auth
+- EmailJS transactional email
 
 ## Project structure
 
@@ -142,6 +143,13 @@ Frontend runs on `http://localhost:5173`.
 - `cursor-move`
 - `active-users`
 
+## Access roles
+
+- Owner: edit, comment, share, soft-delete.
+- Editor: edit and comment.
+- Commenter: comment without editing document content.
+- Viewer: read-only.
+
 ## Supabase setup
 
 Run `supabase_schema.sql` in your Supabase SQL editor before first run.
@@ -153,6 +161,7 @@ Backend:
 ```bash
 cd backend
 npm ci
+npm test
 npm run build
 ```
 

@@ -32,6 +32,7 @@ const CollectionsPage = () => {
     return [
       { title: "Owned", docs: filtered.filter((doc) => doc.role === "owner") },
       { title: "Editor Access", docs: filtered.filter((doc) => doc.role === "editor") },
+      { title: "Commenter Access", docs: filtered.filter((doc) => doc.role === "commenter") },
       { title: "Viewer Access", docs: filtered.filter((doc) => doc.role === "viewer") },
     ];
   }, [docs, query]);

@@ -1,6 +1,11 @@
 export type AppNotification = {
   id: string;
-  type: "document_shared" | "document_updated" | "document_created" | "comment_mention";
+  type:
+    | "document_shared"
+    | "document_updated"
+    | "document_created"
+    | "comment_mention"
+    | "ownership_transferred";
   title: string;
   message: string;
   isRead: boolean;
@@ -38,6 +43,27 @@ export type SearchResultItem = {
   tags: string[];
   updatedAt: string;
   score: number;
+  owner?: {
+    id: string;
+    email: string;
+  };
+  folder?: {
+    id: string;
+    name: string;
+  } | null;
+  collaborators?: Array<{
+    id: string;
+    email: string;
+    role: "editor" | "commenter" | "viewer";
+    invitationStatus?: "pending" | "accepted" | "cancelled";
+    lastInviteSentAt?: string | null;
+    inviteEmailStatus?: string | null;
+  }>;
+  matchedComments?: Array<{
+    id: string;
+    body: string;
+    author: string;
+  }>;
 };
 
 export type TagCountItem = {
@@ -66,11 +92,15 @@ export type DocItem = {
   collaborators: Array<{
     id: string;
     email: string;
-    role: "editor" | "viewer";
+    role: "editor" | "commenter" | "viewer";
+    invitationStatus?: "pending" | "accepted" | "cancelled";
+    lastInviteSentAt?: string | null;
+    inviteEmailStatus?: string | null;
   }>;
-  role: "owner" | "editor" | "viewer";
+  role: "owner" | "editor" | "commenter" | "viewer";
   folderId?: string | null;
   tags?: string[];
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -22,22 +22,46 @@ const shapeComment = (comment: any, authorEmail: string) => ({
   },
 });
 
+type CollaboratorRole = "editor" | "commenter" | "viewer";
+type DocumentRole = "owner" | CollaboratorRole;
+
+const normalizeRole = (role: unknown): CollaboratorRole => {
+  if (role === "viewer") return "viewer";
+  if (role === "commenter") return "commenter";
+  return "editor";
+};
+
+const canComment = (role: DocumentRole | null) =>
+  role === "owner" || role === "editor" || role === "commenter";
+
 const enrichWithUserEmails = async (comments: any[]) => {
   return comments.map((c) => shapeComment(c, emailFromUserId(c.user_id)));
 };
 
-const canAccessDocument = async (documentId: string, userId: string) => {
+const getDocumentAccess = async (documentId: string, userId: string) => {
   const { data: doc } = await supabase
     .from("documents")
-    .select("owner_id, document_collaborators(user_id)")
+    .select("owner_id, title, deleted_at, document_collaborators(user_id, role)")
     .eq("id", documentId)
     .single();
 
-  if (!doc) return false;
-  if (doc.owner_id === userId) return true;
+  if (!doc || doc.deleted_at) return null;
+  if (doc.owner_id === userId) {
+    return { role: "owner" as const, document: doc };
+  }
   
-  const isCollab = doc.document_collaborators?.some((c: any) => c.user_id === userId);
-  return !!isCollab;
+  const collaborator = doc.document_collaborators?.find((c: any) => c.user_id === userId);
+  if (!collaborator) return null;
+
+  return {
+    role: normalizeRole(collaborator.role),
+    document: doc,
+  };
+};
+
+const canAccessDocument = async (documentId: string, userId: string) => {
+  const access = await getDocumentAccess(documentId, userId);
+  return Boolean(access);
 };
 
 const extractMentionEmails = (body: string) => {
@@ -115,10 +139,13 @@ export const getComments = async (req: AuthRequest, res: Response) => {
     const userId = auth.userId;
 
     const documentId = req.params.id;
-    const hasAccess = await canAccessDocument(documentId, userId);
+    const access = await getDocumentAccess(documentId, userId);
 
-    if (!hasAccess) {
+    if (!access) {
       return res.status(404).json({ message: "Document nahi mila" });
+    }
+    if (!canComment(access.role)) {
+      return res.status(403).json({ message: "Viewer comment create nahi kar sakta" });
     }
 
     const { data: comments } = await supabase
@@ -214,15 +241,49 @@ export const updateCommentResolution = async (req: AuthRequest, res: Response) =
 
     const documentId = req.params.id;
     const commentId = req.params.commentId;
-    const hasAccess = await canAccessDocument(documentId, auth.userId);
+    const access = await getDocumentAccess(documentId, auth.userId);
 
-    if (!hasAccess) {
+    if (!access) {
       return res.status(404).json({ message: "Document nahi mila" });
+    }
+    if (!canComment(access.role)) {
+      return res.status(403).json({ message: "Viewer comment update nahi kar sakta" });
+    }
+
+    const { data: existingComment } = await supabase
+      .from("comments")
+      .select("*")
+      .eq("id", commentId)
+      .eq("document_id", documentId)
+      .single();
+
+    if (!existingComment) {
+      return res.status(404).json({ message: "Comment nahi mila" });
+    }
+
+    const updates: Record<string, unknown> = {};
+
+    if (typeof req.body.resolved === "boolean") {
+      updates.resolved = Boolean(req.body.resolved);
+    }
+
+    const nextBody = String(req.body.body ?? req.body.content ?? "").trim();
+    if (nextBody) {
+      const canEditBody = existingComment.user_id === auth.userId || access.role === "owner";
+      if (!canEditBody) {
+        return res.status(403).json({ message: "Sirf comment author ya owner comment edit kar sakta hai" });
+      }
+      updates.content = nextBody;
+    }
+
+    if (!Object.keys(updates).length) {
+      const [shapedComment] = await enrichWithUserEmails([existingComment]);
+      return res.json({ comment: shapedComment });
     }
 
     const { data: comment, error } = await supabase
       .from("comments")
-      .update({ resolved: Boolean(req.body.resolved) })
+      .update(updates)
       .eq("id", commentId)
       .eq("document_id", documentId)
       .select("*")
@@ -233,6 +294,17 @@ export const updateCommentResolution = async (req: AuthRequest, res: Response) =
     }
 
     const [shapedComment] = await enrichWithUserEmails([comment]);
+
+    if (nextBody && nextBody !== existingComment.content) {
+      await createMentionNotifications({
+        documentId,
+        documentTitle: access.document.title || "Untitled document",
+        commentBody: nextBody,
+        actorId: auth.userId,
+        actorEmail: auth.email,
+      }).catch((notificationError) => console.error("Edited comment mention notification failed", notificationError));
+    }
+
     return res.json({ comment: shapedComment });
   } catch (error) {
     console.error("Update comment failed", error);
@@ -242,5 +314,56 @@ export const updateCommentResolution = async (req: AuthRequest, res: Response) =
       });
     }
     return res.status(500).json({ message: "Comment update nahi hua" });
+  }
+};
+
+export const deleteComment = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const documentId = req.params.id;
+    const commentId = req.params.commentId;
+    const access = await getDocumentAccess(documentId, auth.userId);
+
+    if (!access) {
+      return res.status(404).json({ message: "Document nahi mila" });
+    }
+    if (!canComment(access.role)) {
+      return res.status(403).json({ message: "Viewer comment delete nahi kar sakta" });
+    }
+
+    const { data: comment } = await supabase
+      .from("comments")
+      .select("*")
+      .eq("id", commentId)
+      .eq("document_id", documentId)
+      .single();
+
+    if (!comment) {
+      return res.status(404).json({ message: "Comment nahi mila" });
+    }
+
+    if (comment.user_id !== auth.userId && access.role !== "owner") {
+      return res.status(403).json({ message: "Sirf comment author ya owner comment delete kar sakta hai" });
+    }
+
+    const { error } = await supabase
+      .from("comments")
+      .delete()
+      .eq("id", commentId)
+      .eq("document_id", documentId);
+
+    if (error) throw error;
+
+    return res.json({ success: true, id: commentId });
+  } catch (error) {
+    console.error("Delete comment failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using comments.",
+      });
+    }
+    return res.status(500).json({ message: "Comment delete nahi hua" });
   }
 };

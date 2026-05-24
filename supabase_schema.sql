@@ -73,7 +73,7 @@ end $$;
 create table if not exists public.document_collaborators (
   document_id uuid references public.documents(id) on delete cascade not null,
   user_id text not null,
-  role text default 'editor' check (role in ('editor', 'viewer')),
+  role text default 'editor' check (role in ('editor', 'commenter', 'viewer')),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
   primary key (document_id, user_id)
@@ -82,6 +82,19 @@ create table if not exists public.document_collaborators (
 alter table public.document_collaborators add column if not exists role text default 'editor';
 alter table public.document_collaborators add column if not exists created_at timestamp with time zone default timezone('utc'::text, now()) not null;
 alter table public.document_collaborators add column if not exists updated_at timestamp with time zone default timezone('utc'::text, now()) not null;
+alter table public.document_collaborators add column if not exists invitation_status text default 'pending';
+alter table public.document_collaborators add column if not exists last_invite_sent_at timestamp with time zone;
+alter table public.document_collaborators add column if not exists invite_email_status text default 'queued';
+
+alter table public.document_collaborators drop constraint if exists document_collaborators_role_check;
+alter table public.document_collaborators
+  add constraint document_collaborators_role_check
+  check (role in ('editor', 'commenter', 'viewer'));
+
+alter table public.document_collaborators drop constraint if exists document_collaborators_invitation_status_check;
+alter table public.document_collaborators
+  add constraint document_collaborators_invitation_status_check
+  check (invitation_status in ('pending', 'accepted', 'cancelled'));
 
 create table if not exists public.comments (
   id uuid primary key default gen_random_uuid(),
@@ -149,6 +162,7 @@ create index if not exists idx_documents_owner_updated on public.documents(owner
 create index if not exists idx_documents_folder on public.documents(folder_id);
 create index if not exists idx_documents_deleted_at on public.documents(deleted_at);
 create index if not exists idx_document_collaborators_user on public.document_collaborators(user_id);
+create index if not exists idx_document_collaborators_invitation_status on public.document_collaborators(invitation_status, last_invite_sent_at desc);
 create index if not exists idx_comments_document_created on public.comments(document_id, created_at desc);
 create index if not exists idx_notifications_recipient_read on public.notifications(recipient_id, read, created_at desc);
 create index if not exists idx_document_versions_document_created on public.document_versions(document_id, created_at desc);
@@ -267,7 +281,10 @@ select
   'owner'::text as role,
   true as can_edit,
   true as can_share,
-  d.created_at as granted_at
+  d.created_at as granted_at,
+  'accepted'::text as invitation_status,
+  null::timestamp with time zone as last_invite_sent_at,
+  null::text as invite_email_status
 from public.documents d
 union all
 select
@@ -278,7 +295,10 @@ select
   dc.role,
   dc.role = 'editor' as can_edit,
   false as can_share,
-  dc.created_at as granted_at
+  dc.created_at as granted_at,
+  dc.invitation_status,
+  dc.last_invite_sent_at,
+  dc.invite_email_status
 from public.document_collaborators dc
 join public.documents d on d.id = dc.document_id;
 

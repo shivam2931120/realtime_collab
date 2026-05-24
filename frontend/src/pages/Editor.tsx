@@ -28,7 +28,7 @@ import { getAuthToken } from "../services/auth";
 import { useAuthStore } from "../store/authStore";
 import { usePreferencesStore } from "../store/preferencesStore";
 
-type ShareRole = "editor" | "viewer";
+type ShareRole = "editor" | "commenter" | "viewer";
 
 type ActiveSession = {
   sessionId: string;
@@ -65,6 +65,47 @@ type SearchMatch = {
   from: number;
   to: number;
 };
+type VersionItem = {
+  id: string;
+  content: string;
+  createdAt?: string;
+  created_at?: string;
+  createdBy?: {
+    id: string;
+    email: string;
+  };
+  wordCount?: number;
+  characterCount?: number;
+  preview?: string;
+};
+type VersionDiff = {
+  versionId: string;
+  wordDelta: number;
+  characterDelta: number;
+  addedPreview: string;
+  removedPreview: string;
+};
+type OutlineItem = {
+  id: string;
+  level: number;
+  text: string;
+  pos: number;
+};
+type ActivityItem = {
+  id: string;
+  type: string;
+  actor?: {
+    id: string;
+    email: string;
+  };
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+};
+type LocalDraft = {
+  content: string;
+  title: string;
+  updatedAt: string;
+};
 
 const textColorOptions = [
   { label: "Ink", value: "#131313" },
@@ -97,6 +138,110 @@ const clampCursorPosition = (pos: number, maxPos: number) =>
 
 const stripContent = (content: string) =>
   content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+const getVersionDate = (version: VersionItem) => version.createdAt || version.created_at || "";
+
+const getVersionPreview = (version: VersionItem) =>
+  version.preview || stripContent(version.content || "").slice(0, 220) || "Empty snapshot";
+
+const getVersionWordCount = (version: VersionItem) =>
+  typeof version.wordCount === "number"
+    ? version.wordCount
+    : stripContent(version.content || "").split(/\s+/).filter(Boolean).length;
+
+const getVersionCharacterCount = (version: VersionItem) =>
+  typeof version.characterCount === "number"
+    ? version.characterCount
+    : stripContent(version.content || "").length;
+
+const draftStorageKey = (documentId: string) => `editorial.local-draft.${documentId}`;
+const historyStorageKey = (documentId: string) => `editorial.autosave-history.${documentId}`;
+
+const readJson = <T,>(key: string): T | null => {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+};
+
+const readLocalDraft = (documentId: string) => readJson<LocalDraft>(draftStorageKey(documentId));
+
+const writeLocalDraft = (documentId: string, draft: LocalDraft) => {
+  try {
+    window.localStorage.setItem(draftStorageKey(documentId), JSON.stringify(draft));
+  } catch {
+    // Local draft storage can fail in private browsing or low-storage environments.
+  }
+};
+
+const clearLocalDraft = (documentId: string) => {
+  try {
+    window.localStorage.removeItem(draftStorageKey(documentId));
+  } catch {
+    // Ignore local storage cleanup failures.
+  }
+};
+
+const readAutosaveHistory = (documentId: string) => readJson<LocalDraft[]>(historyStorageKey(documentId)) || [];
+
+const pushAutosaveHistory = (documentId: string, draft: LocalDraft) => {
+  try {
+    const previous = readAutosaveHistory(documentId);
+    if (previous[0]?.content === draft.content) {
+      window.localStorage.setItem(historyStorageKey(documentId), JSON.stringify([{ ...previous[0], updatedAt: draft.updatedAt }, ...previous.slice(1)]));
+      return;
+    }
+
+    window.localStorage.setItem(historyStorageKey(documentId), JSON.stringify([draft, ...previous].slice(0, 8)));
+  } catch {
+    // Autosave history is a best-effort recovery feature.
+  }
+};
+
+const formatActivityType = (type: string) =>
+  type
+    .replace(/^document_/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+const formatActivityMetadata = (metadata?: Record<string, unknown>) => {
+  if (!metadata) {
+    return "";
+  }
+
+  return Object.entries(metadata)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .slice(0, 3)
+    .map(([key, value]) => `${key.replace(/_/g, " ")}: ${String(value)}`)
+    .join(" · ");
+};
+
+const collectOutlineItems = (editor: TiptapEditor | null): OutlineItem[] => {
+  if (!editor) return [];
+
+  const items: OutlineItem[] = [];
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name !== "heading") {
+      return;
+    }
+
+    const text = node.textContent.trim();
+    if (!text) {
+      return;
+    }
+
+    items.push({
+      id: `${pos}-${text.slice(0, 24)}`,
+      level: Number(node.attrs.level || 1),
+      text,
+      pos,
+    });
+  });
+
+  return items;
+};
 
 const tagHue = (tag: string) =>
   Array.from(tag).reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
@@ -134,12 +279,18 @@ const collectSearchMatches = (
 const toTitleCase = (value: string) =>
   value.replace(/\S+/g, (word) => `${word.charAt(0).toLocaleUpperCase()}${word.slice(1).toLocaleLowerCase()}`);
 
-const roleBadgeClass = (role: "owner" | "editor" | "viewer") =>
+const roleBadgeClass = (role: DocItem["role"]) =>
   role === "owner"
     ? "bg-primary-container text-on-primary-container"
     : role === "editor"
-      ? "bg-blue-500/15 text-blue-200"
-      : "bg-white/10 text-on-surface-variant";
+      ? "bg-primary/15 text-primary"
+      : role === "commenter"
+        ? "bg-secondary/15 text-secondary"
+        : "bg-white/10 text-on-surface-variant";
+
+const canEditDocument = (role?: DocItem["role"] | null) => role === "owner" || role === "editor";
+const canCommentDocument = (role?: DocItem["role"] | null) =>
+  role === "owner" || role === "editor" || role === "commenter";
 
 const formatLastSeen = (value?: string) => {
   if (!value) return "active now";
@@ -175,6 +326,9 @@ const EditorPage = () => {
   const [shareRole, setShareRole] = useState<ShareRole>("editor");
   const [savingShare, setSavingShare] = useState(false);
   const [shareNotice, setShareNotice] = useState("");
+  const [shareCopied, setShareCopied] = useState(false);
+  const [transferOwnerEmail, setTransferOwnerEmail] = useState("");
+  const [transferringOwner, setTransferringOwner] = useState(false);
   const [removingCollaboratorEmail, setRemovingCollaboratorEmail] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
@@ -184,11 +338,23 @@ const EditorPage = () => {
   const [openMenu, setOpenMenu] = useState<null | "file" | "edit" | "view">(null);
   const [showComments, setShowComments] = useState(true);
   const [wideCanvas, setWideCanvas] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [showOutline, setShowOutline] = useState(false);
+  const [showAutosaveHistory, setShowAutosaveHistory] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const [activeUsers, setActiveUsers] = useState<ActiveSession[]>([]);
   const [showVersions, setShowVersions] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<null | "comments" | "versions">(null);
-  const [versions, setVersions] = useState<any[]>([]);
+  const [mobilePanel, setMobilePanel] = useState<null | "comments" | "versions" | "activity">(null);
+  const [versions, setVersions] = useState<VersionItem[]>([]);
+  const [selectedVersionId, setSelectedVersionId] = useState("");
+  const [versionDiff, setVersionDiff] = useState<VersionDiff | null>(null);
+  const [loadingVersionDiff, setLoadingVersionDiff] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [loadingActivity, setLoadingActivity] = useState(false);
   const [creatingVersion, setCreatingVersion] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState("");
+  const [editingCommentBody, setEditingCommentBody] = useState("");
+  const [deletingCommentId, setDeletingCommentId] = useState("");
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>([]);
   const [positionedCursors, setPositionedCursors] = useState<PositionedCursor[]>([]);
   const [scrollVersion, setScrollVersion] = useState(0);
@@ -201,6 +367,9 @@ const EditorPage = () => {
   const [activeFindIndex, setActiveFindIndex] = useState(0);
   const [editorRevision, setEditorRevision] = useState(0);
   const [editorSelectionRevision, setEditorSelectionRevision] = useState(0);
+  const [localDraftNotice, setLocalDraftNotice] = useState<LocalDraft | null>(null);
+  const [autosaveHistory, setAutosaveHistory] = useState<LocalDraft[]>([]);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const retryTimerRef = useRef<number | undefined>(undefined);
   const queuedSaveContentRef = useRef<string | null>(null);
@@ -281,7 +450,13 @@ const EditorPage = () => {
 
     try {
       await api.put(`/docs/${id}`, { content });
-      setSaveStatus(queuedSaveContentRef.current ? "queued" : "saved");
+      const hasQueuedSave = Boolean(queuedSaveContentRef.current);
+      setLastSavedAt(new Date().toISOString());
+      if (!hasQueuedSave) {
+        clearLocalDraft(id);
+        setLocalDraftNotice(null);
+      }
+      setSaveStatus(hasQueuedSave ? "queued" : "saved");
     } catch (requestError) {
       console.error("Document save failed", requestError);
       queuedSaveContentRef.current = content;
@@ -303,6 +478,16 @@ const EditorPage = () => {
 
   const queueSave = (content: string) => {
     queuedSaveContentRef.current = content;
+    if (id) {
+      const draft = {
+        content,
+        title: docRef.current?.title || activeDoc?.title || "Untitled document",
+        updatedAt: new Date().toISOString(),
+      };
+      writeLocalDraft(id, draft);
+      pushAutosaveHistory(id, draft);
+      setAutosaveHistory(readAutosaveHistory(id));
+    }
     setSaveStatus(navigator.onLine ? "queued" : "queued");
     window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
@@ -369,6 +554,39 @@ const EditorPage = () => {
     setTitleInput(docResponse.data.document.title);
     setTags(tagsResponse.data.tags || []);
     setTagInput((tagsResponse.data.tags || []).join(", "));
+    setLastSavedAt(docResponse.data.document.updatedAt || null);
+
+    const localDraft = readLocalDraft(id);
+    setAutosaveHistory(readAutosaveHistory(id));
+    if (localDraft && localDraft.content !== docResponse.data.document.content) {
+      setLocalDraftNotice(localDraft);
+    } else {
+      setLocalDraftNotice(null);
+    }
+  };
+
+  const restoreLocalDraft = (draft: LocalDraft) => {
+    if (!id || !editor) {
+      return;
+    }
+
+    editor.commands.setContent(draft.content || "<p></p>", false);
+    if (activeDoc) {
+      const nextDoc = { ...activeDoc, content: draft.content, updatedAt: draft.updatedAt };
+      setActiveDoc(nextDoc);
+      upsertDoc(nextDoc);
+    }
+    queueSave(draft.content || "<p></p>");
+    setLocalDraftNotice(null);
+  };
+
+  const discardLocalDraft = () => {
+    if (!id) {
+      return;
+    }
+
+    clearLocalDraft(id);
+    setLocalDraftNotice(null);
   };
 
   useEffect(() => {
@@ -398,7 +616,7 @@ const EditorPage = () => {
       return;
     }
 
-    editor.setEditable(activeDoc.role !== "viewer");
+    editor.setEditable(canEditDocument(activeDoc.role));
 
     if (editor.getHTML() !== activeDoc.content) {
       applyingRemoteRef.current = true;
@@ -431,7 +649,7 @@ const EditorPage = () => {
       }
 
       socket = connectSocket(token);
-      const canEdit = currentDoc.role !== "viewer";
+      const canEdit = canEditDocument(currentDoc.role);
 
       const handleConnect = () => {
         setSocketState("connected");
@@ -737,6 +955,14 @@ const EditorPage = () => {
     setActiveFindIndex(0);
   };
 
+  const jumpToOutlineItem = (item: OutlineItem) => {
+    if (!editor) {
+      return;
+    }
+
+    editor.chain().focus().setTextSelection(item.pos + 1).scrollIntoView().run();
+  };
+
   const transformSelectionText = (transformer: (value: string) => string) => {
     if (!editor || editor.state.selection.empty) {
       return;
@@ -819,6 +1045,47 @@ const EditorPage = () => {
     setComments((current) =>
       current.map((item) => (item.id === comment.id ? response.data.comment : item)),
     );
+  };
+
+  const startCommentEdit = (comment: DocComment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentBody(comment.body);
+  };
+
+  const saveCommentEdit = async (comment: DocComment) => {
+    if (!id || !editingCommentBody.trim()) {
+      return;
+    }
+
+    const response = await api.put<{ comment: DocComment }>(`/docs/${id}/comments/${comment.id}`, {
+      body: editingCommentBody.trim(),
+    });
+
+    setComments((current) =>
+      current.map((item) => (item.id === comment.id ? response.data.comment : item)),
+    );
+    setEditingCommentId("");
+    setEditingCommentBody("");
+  };
+
+  const deleteComment = async (comment: DocComment) => {
+    if (!id) return;
+    if (!window.confirm("Delete this comment permanently?")) return;
+
+    setDeletingCommentId(comment.id);
+    try {
+      await api.delete(`/docs/${id}/comments/${comment.id}`);
+      setComments((current) => current.filter((item) => item.id !== comment.id));
+    } finally {
+      setDeletingCommentId("");
+    }
+  };
+
+  const replyToComment = (comment: DocComment) => {
+    setCommentBody(`@${comment.author.email} `);
+    if (mobilePanel !== "comments") {
+      setShowComments(true);
+    }
   };
 
   const parseShareEmails = (value: string) =>
@@ -916,6 +1183,106 @@ const EditorPage = () => {
     }
   };
 
+  const changeCollaboratorRole = async (email: string, role: ShareRole) => {
+    if (!activeDoc || activeDoc.role !== "owner") {
+      return;
+    }
+
+    setRemovingCollaboratorEmail(email);
+    setShareNotice("");
+    setError("");
+
+    try {
+      const collaborators = activeDoc.collaborators.map((item) => ({
+        email: item.email,
+        role: item.email.toLowerCase() === email.toLowerCase() ? role : item.role,
+      }));
+
+      await persistCollaborators(collaborators, [email]);
+      setShareNotice(`${email} is now a ${role}.`);
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Role update nahi hua");
+      } else {
+        setError("Role update nahi hua");
+      }
+    } finally {
+      setRemovingCollaboratorEmail("");
+    }
+  };
+
+  const resendCollaboratorAccess = async (email: string) => {
+    if (!activeDoc || activeDoc.role !== "owner") {
+      return;
+    }
+
+    setRemovingCollaboratorEmail(email);
+    setShareNotice("");
+    setError("");
+
+    try {
+      const collaborators = activeDoc.collaborators.map((item) => ({
+        email: item.email,
+        role: item.role,
+      }));
+
+      await persistCollaborators(collaborators, [email]);
+      setShareNotice(`Access email resent to ${email}.`);
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Invite resend nahi hua");
+      } else {
+        setError("Invite resend nahi hua");
+      }
+    } finally {
+      setRemovingCollaboratorEmail("");
+    }
+  };
+
+  const transferOwnership = async () => {
+    if (!id || !activeDoc || activeDoc.role !== "owner") {
+      return;
+    }
+
+    const email = transferOwnerEmail.trim().toLowerCase();
+    if (!email) {
+      setShareNotice("Enter the next owner email.");
+      return;
+    }
+
+    if (!window.confirm(`Transfer ownership to ${email}?`)) {
+      return;
+    }
+
+    setTransferringOwner(true);
+    setShareNotice("");
+    setError("");
+
+    try {
+      const response = await api.post<{ document: DocItem }>(`/docs/${id}/transfer-owner`, {
+        email,
+      });
+      setActiveDoc(response.data.document);
+      upsertDoc(response.data.document);
+      setTransferOwnerEmail("");
+      setShareNotice(`${email} is now the owner. Your access changed to editor.`);
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError)) {
+        setError(requestError.response?.data?.message || "Ownership transfer failed");
+      } else {
+        setError("Ownership transfer failed");
+      }
+    } finally {
+      setTransferringOwner(false);
+    }
+  };
+
+  const copyDocumentLink = async () => {
+    await navigator.clipboard.writeText(window.location.href);
+    setShareCopied(true);
+    window.setTimeout(() => setShareCopied(false), 1800);
+  };
+
   const handleRename = async () => {
     if (!id || !titleInput.trim()) {
       return;
@@ -944,19 +1311,70 @@ const EditorPage = () => {
   const loadVersions = async () => {
     if (!id) return;
     try {
-      const response = await api.get<{ versions: any[] }>(`/docs/${id}/versions`);
-      setVersions(response.data.versions);
+      const response = await api.get<{ versions: VersionItem[] }>(`/docs/${id}/versions`);
+      const nextVersions = response.data.versions || [];
+      setVersions(nextVersions);
+      setSelectedVersionId((current) =>
+        current && nextVersions.some((version) => version.id === current)
+          ? current
+          : nextVersions[0]?.id || "",
+      );
     } catch (e) {
       console.error(e);
     }
   };
 
+  const loadActivity = async () => {
+    if (!id) return;
+    setLoadingActivity(true);
+    try {
+      const response = await api.get<{ activity: ActivityItem[] }>(`/docs/${id}/activity`);
+      setActivity(response.data.activity || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingActivity(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!id || !selectedVersionId) {
+      setVersionDiff(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingVersionDiff(true);
+    api
+      .get<VersionDiff>(`/docs/${id}/versions/${selectedVersionId}/diff`)
+      .then((response) => {
+        if (!cancelled) {
+          setVersionDiff(response.data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVersionDiff(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingVersionDiff(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, selectedVersionId]);
+
   const snapshotVersion = async () => {
     if (!id) return;
     setCreatingVersion(true);
     try {
-      const response = await api.post(`/docs/${id}/versions`);
+      const response = await api.post<{ version: VersionItem }>(`/docs/${id}/versions`);
       setVersions([response.data.version, ...versions]);
+      setSelectedVersionId(response.data.version.id);
     } catch (e) {
       console.error(e);
     } finally {
@@ -964,7 +1382,7 @@ const EditorPage = () => {
     }
   };
 
-  const restoreVersion = async (version: any) => {
+  const restoreVersion = async (version: VersionItem) => {
     if (!id || !editor) {
       return;
     }
@@ -990,6 +1408,10 @@ const EditorPage = () => {
 
   const exportFromServer = async (format: ExportFormat) => {
     if (!id) {
+      return;
+    }
+    if (!canEditDocument(activeDoc?.role)) {
+      setError("Only owners and editors can export documents.");
       return;
     }
 
@@ -1022,7 +1444,7 @@ const EditorPage = () => {
   };
 
   const saveTags = async () => {
-    if (!id || !activeDoc || activeDoc.role === "viewer") {
+    if (!id || !activeDoc || !canEditDocument(activeDoc.role)) {
       return;
     }
 
@@ -1069,7 +1491,8 @@ const EditorPage = () => {
     input.click();
   };
 
-  const editorDisabled = !editor || activeDoc?.role === "viewer";
+  const editorDisabled = !editor || !canEditDocument(activeDoc?.role);
+  const canExportDocument = canEditDocument(activeDoc?.role);
   const isTableActive = editorSelectionRevision >= 0 && Boolean(editor?.isActive("table"));
   const canTransformSelection = Boolean(editor && !editor.state.selection.empty);
   const currentBlockStyle = editor?.isActive("heading", { level: 1 })
@@ -1220,13 +1643,17 @@ const EditorPage = () => {
   const fileMenuItems = [
     { label: "Rename document", action: handleRename },
     { label: "Share document", action: () => setShareModalOpen(true) },
-    { label: "Import file", action: importFile },
-    { label: "Preview export", action: () => setExportPreviewFormat("markdown") },
-    { label: "Export as HTML", action: () => setExportPreviewFormat("html") },
-    { label: "Export as Markdown", action: () => setExportPreviewFormat("markdown") },
-    { label: "Export as PDF", action: () => setExportPreviewFormat("pdf") },
-    { label: "Export as DOCX", action: () => setExportPreviewFormat("docx") },
-    { label: "Export as TXT", action: () => setExportPreviewFormat("txt") },
+    ...(canExportDocument
+      ? [
+          { label: "Import file", action: importFile },
+          { label: "Preview export", action: () => setExportPreviewFormat("markdown") },
+          { label: "Export as HTML", action: () => setExportPreviewFormat("html") },
+          { label: "Export as Markdown", action: () => setExportPreviewFormat("markdown") },
+          { label: "Export as PDF", action: () => setExportPreviewFormat("pdf") },
+          { label: "Export as DOCX", action: () => setExportPreviewFormat("docx") },
+          { label: "Export as TXT", action: () => setExportPreviewFormat("txt") },
+        ]
+      : []),
     { label: "Open Template Library", action: () => navigate("/library") },
     {
       label: "Copy editor link",
@@ -1272,6 +1699,14 @@ const EditorPage = () => {
   ];
 
   const viewMenuItems = [
+    { label: focusMode ? "Exit focus mode" : "Mobile focus mode", action: () => setFocusMode((current) => !current) },
+    { label: showOutline ? "Hide outline" : "Show outline", action: () => setShowOutline((current) => !current) },
+    { label: showAutosaveHistory ? "Hide autosaves" : "Show autosaves", action: () => setShowAutosaveHistory((current) => !current) },
+    { label: showActivity ? "Hide activity" : "Show activity", action: () => {
+        setShowActivity((current) => !current);
+        if (!showActivity) loadActivity();
+      }
+    },
     { label: showComments ? "Hide comments" : "Show comments", action: () => setShowComments((current) => !current) },
     { label: showVersions ? "Hide versions" : "Show versions", action: () => {
         setShowVersions((c) => !c);
@@ -1301,6 +1736,7 @@ const EditorPage = () => {
   });
   const openCommentCount = comments.filter((comment) => !comment.resolved).length;
   const resolvedCommentCount = comments.length - openCommentCount;
+  const selectedVersion = versions.find((version) => version.id === selectedVersionId) || versions[0] || null;
   const exportPreviewTitle =
     exportPreviewFormat === "html"
       ? "HTML export"
@@ -1314,6 +1750,14 @@ const EditorPage = () => {
   const exportPreviewText = stripContent(activeDoc?.content || "");
   const wordCount = exportPreviewText.split(/\s+/).filter(Boolean).length;
   const characterCount = exportPreviewText.length;
+  const readingMinutes = Math.max(1, Math.ceil(wordCount / 220));
+  const outlineItems = useMemo(() => collectOutlineItems(editor), [editor, editorRevision]);
+  const selectedVersionDelta = selectedVersion
+    ? {
+        words: wordCount - getVersionWordCount(selectedVersion),
+        characters: characterCount - getVersionCharacterCount(selectedVersion),
+      }
+    : null;
   const activePresence = activeUsers.map((user) => {
     const lastSeen = user.lastSeen || new Date(presenceClock).toISOString();
     const idle = Date.now() - new Date(lastSeen).getTime() > PRESENCE_IDLE_MS;
@@ -1329,6 +1773,36 @@ const EditorPage = () => {
         : saveStatus === "error"
           ? "Retrying"
           : "Saved";
+  const lastSavedLabel =
+    saveStatus === "saved" && lastSavedAt
+      ? new Date(lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "";
+  const versionDiffBlock = selectedVersion ? (
+    <div className="mt-3 rounded border border-white/10 bg-surface-container px-3 py-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Diff preview</p>
+        <span className="text-[10px] font-bold text-primary">
+          {loadingVersionDiff
+            ? "Loading"
+            : versionDiff
+              ? `${versionDiff.wordDelta >= 0 ? "+" : ""}${versionDiff.wordDelta} words`
+              : "Unavailable"}
+        </span>
+      </div>
+      {versionDiff ? (
+        <div className="grid gap-2">
+          <div className="rounded bg-primary/10 p-2">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-primary">Added</p>
+            <p className="mt-1 line-clamp-3 text-xs text-on-surface-variant">{versionDiff.addedPreview || "No additions"}</p>
+          </div>
+          <div className="rounded bg-tertiary/10 p-2">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-tertiary">Removed</p>
+            <p className="mt-1 line-clamp-3 text-xs text-on-surface-variant">{versionDiff.removedPreview || "No removals"}</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  ) : null;
 
   if (loading) {
     return (
@@ -1489,7 +1963,7 @@ const EditorPage = () => {
             sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
           }`}
         >
-          <header className="sticky top-0 z-30 flex min-h-16 flex-col items-stretch justify-between gap-3 border-b border-white/5 bg-surface-container-lowest px-4 py-3 md:h-16 md:flex-row md:items-center md:px-8 md:py-0">
+          <header className={`sticky top-0 z-30 flex min-h-16 flex-col items-stretch justify-between gap-3 border-b border-white/5 bg-surface-container-lowest px-4 py-3 md:h-16 md:flex-row md:items-center md:px-8 md:py-0 ${focusMode ? "max-md:hidden" : ""}`}>
             <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center md:gap-4">
               <div className="min-w-0 flex-1">
                 <h1 className="line-clamp-2 break-words text-base font-bold leading-snug tracking-tight text-on-surface sm:text-lg md:line-clamp-1">
@@ -1523,11 +1997,13 @@ const EditorPage = () => {
                       saveStatus === "saved"
                         ? "bg-primary shadow-[0_0_8px_rgba(16,185,129,0.4)]"
                         : saveStatus === "error"
-                          ? "bg-red-400"
-                          : "bg-yellow-300"
+                          ? "bg-error"
+                          : "bg-secondary"
                     }`}
                   />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">{saveStatusLabel}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">
+                    {lastSavedLabel ? `${saveStatusLabel} ${lastSavedLabel}` : saveStatusLabel}
+                  </span>
                 </div>
                 {activeDoc?.role ? (
                   <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(activeDoc.role)}`}>
@@ -1535,7 +2011,7 @@ const EditorPage = () => {
                   </span>
                 ) : null}
                 <span className="hidden rounded border border-white/5 bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant md:inline-flex">
-                  {wordCount} words · {characterCount} chars
+                  {wordCount} words · {readingMinutes} min read · {outlineItems.length} heads
                 </span>
                 {activePresence.length > 0 && (
                   <div className="hidden items-center gap-3 sm:flex lg:ml-2">
@@ -1560,7 +2036,7 @@ const EditorPage = () => {
               </div>
             </div>
 
-            <div className="grid w-full grid-cols-[1fr_1fr_1fr_auto] gap-1.5 sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-2 md:gap-3">
+            <div className="grid w-full grid-cols-[1fr_1fr_1fr_1fr_auto_auto] gap-1.5 sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-2 md:gap-3">
               <button
                 type="button"
                 onClick={() => setMobilePanel("comments")}
@@ -1586,6 +2062,19 @@ const EditorPage = () => {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  loadActivity();
+                  setMobilePanel("activity");
+                }}
+                className="emerald-muted-button min-w-0 px-2 text-[11px] sm:flex-none sm:px-4 sm:text-sm xl:hidden"
+                aria-label="Activity"
+                title="Activity"
+              >
+                <span className="material-symbols-outlined text-sm">timeline</span>
+                <span className="hidden min-[390px]:inline" aria-hidden="true">Activity</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setShareModalOpen(true)}
                 className="emerald-primary-button min-w-0 px-2 text-[11px] sm:flex-none sm:px-4 sm:text-sm"
                 aria-label="Share"
@@ -1602,19 +2091,54 @@ const EditorPage = () => {
               >
                 <span className="material-symbols-outlined">refresh</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setFocusMode((current) => !current)}
+                className="flex h-9 w-9 items-center justify-center rounded text-[#a3a3a3] transition hover:bg-[#201f1f] hover:text-white md:hidden"
+                title={focusMode ? "Exit focus mode" : "Focus mode"}
+              >
+                <span className="material-symbols-outlined">{focusMode ? "close_fullscreen" : "open_in_full"}</span>
+              </button>
             </div>
           </header>
 
           {onlineProblem ? (
-            <div className="border-b border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold text-yellow-100 md:px-8">
+            <div className="border-b border-secondary/20 bg-secondary-container/20 px-4 py-2 text-xs font-semibold text-secondary md:px-8">
               {!browserOnline
                 ? "You are offline. Edits are queued locally and will retry when your connection returns."
                 : "Realtime connection is unavailable. Edits keep saving through the retry queue."}
             </div>
           ) : null}
 
+          {localDraftNotice ? (
+            <div className="flex flex-col gap-3 border-b border-primary/20 bg-primary/10 px-4 py-3 text-xs text-primary md:flex-row md:items-center md:justify-between md:px-8">
+              <div>
+                <p className="font-bold uppercase tracking-widest">Local recovery</p>
+                <p className="mt-1 text-primary/80">
+                  Draft from {new Date(localDraftNotice.updatedAt).toLocaleString()} is available.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <button
+                  type="button"
+                  onClick={() => restoreLocalDraft(localDraftNotice)}
+                  className="rounded bg-primary px-3 py-2 font-semibold text-on-primary"
+                >
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  onClick={discardLocalDraft}
+                  className="rounded border border-primary/30 px-3 py-2 font-semibold text-primary"
+                >
+                  Discard
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {activePresence.length ? (
-            <div className="border-b border-white/5 bg-surface-container-lowest px-4 py-2 md:px-8">
+            <div className={`border-b border-white/5 bg-surface-container-lowest px-4 py-2 md:px-8 ${focusMode ? "max-md:hidden" : ""}`}>
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-on-surface-variant">
                 <span className="font-bold uppercase tracking-widest text-primary">Collaborators</span>
                 {activePresence.map((user) => (
@@ -1634,10 +2158,99 @@ const EditorPage = () => {
           ) : null}
 
           <div
-            className="flex flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-4 md:px-8 md:pb-32 md:pt-8"
+            className={`flex flex-1 overflow-y-auto pb-24 md:px-8 md:pb-32 md:pt-8 ${focusMode ? "px-1 pt-2 sm:px-4" : "px-3 pt-4 sm:px-4"}`}
             onScroll={() => setScrollVersion((current) => current + 1)}
           >
             <div className={`mx-auto w-full min-w-0 flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[800px]"}`}>
+              {showOutline ? (
+                <div className="mb-4 rounded border border-white/10 bg-surface-container-high p-3 shadow-xl md:mb-6">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Outline</p>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        {outlineItems.length ? `${outlineItems.length} heading${outlineItems.length === 1 ? "" : "s"}` : "No headings yet"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowOutline(false)}
+                      className="rounded p-2 text-on-surface-variant transition hover:bg-white/10 hover:text-white"
+                      title="Hide outline"
+                    >
+                      <span className="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+                  {outlineItems.length ? (
+                    <div className="flex max-h-48 flex-col gap-1 overflow-y-auto pr-1">
+                      {outlineItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => jumpToOutlineItem(item)}
+                          className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-xs text-on-surface-variant transition hover:bg-white/10 hover:text-white"
+                          style={{ paddingLeft: `${8 + Math.max(0, item.level - 1) * 12}px` }}
+                        >
+                          <span className="shrink-0 rounded bg-surface-container-low px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">
+                            H{item.level}
+                          </span>
+                          <span className="min-w-0 truncate">{item.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded bg-surface-container-low p-3 text-sm text-on-surface-variant">
+                      No headings found.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {showAutosaveHistory ? (
+                <div className="mb-4 rounded border border-white/10 bg-surface-container-high p-3 shadow-xl md:mb-6">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Autosaves</p>
+                      <p className="mt-1 text-xs text-on-surface-variant">{autosaveHistory.length} local points</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAutosaveHistory(false)}
+                      className="rounded p-2 text-on-surface-variant transition hover:bg-white/10 hover:text-white"
+                      title="Hide autosaves"
+                    >
+                      <span className="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+                  {autosaveHistory.length ? (
+                    <div className="grid gap-2">
+                      {autosaveHistory.map((draft) => (
+                        <div key={`${draft.updatedAt}-${draft.content.length}`} className="rounded bg-surface-container-low p-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-white">{new Date(draft.updatedAt).toLocaleString()}</p>
+                              <p className="mt-1 line-clamp-2 text-xs text-on-surface-variant">
+                                {stripContent(draft.content) || "Empty draft"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => restoreLocalDraft(draft)}
+                              className="emerald-muted-button justify-center px-3 py-2 text-xs"
+                            >
+                              Restore
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded bg-surface-container-low p-3 text-sm text-on-surface-variant">
+                      No local autosaves yet.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
               <div className="sticky top-2 z-40 mx-auto mb-6 flex flex-col items-center justify-center gap-2 md:top-4 md:mb-12">
                 <div className="editorial-editor-toolbar flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-2 py-2 shadow-2xl backdrop-blur-xl sm:px-4">
                   <select
@@ -1972,13 +2585,14 @@ const EditorPage = () => {
                 <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
                 <input
                   className="flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
-                  placeholder="Type a comment or @mention an email..."
+                  placeholder={canCommentDocument(activeDoc?.role) ? "Type a comment or @mention an email..." : "View-only access"}
                   value={commentBody}
                   onChange={(event) => setCommentBody(event.target.value)}
                   type="text"
+                  disabled={!canCommentDocument(activeDoc?.role)}
                 />
               </div>
-              <button type="button" onClick={() => addComment().catch(console.error)} className="emerald-primary-button w-full">
+              <button type="button" onClick={() => addComment().catch(console.error)} disabled={!canCommentDocument(activeDoc?.role)} className="emerald-primary-button w-full">
                 Add Comment
               </button>
             </div>
@@ -2000,7 +2614,36 @@ const EditorPage = () => {
                       <div className="text-[9px] text-[#a3a3a3]">{new Date(comment.createdAt).toLocaleString()}</div>
                     </div>
                   </div>
-                  <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
+                  {editingCommentId === comment.id ? (
+                    <div className="space-y-2">
+                      <textarea
+                        className="emerald-input min-h-[82px] resize-none text-xs"
+                        value={editingCommentBody}
+                        onChange={(event) => setEditingCommentBody(event.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveCommentEdit(comment).catch(console.error)}
+                          className="emerald-primary-button px-3 py-1 text-[10px]"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCommentId("");
+                            setEditingCommentBody("");
+                          }}
+                          className="emerald-muted-button px-3 py-1 text-[10px]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
+                  )}
                   {comment.position?.text ? (
                     <button
                       type="button"
@@ -2010,16 +2653,49 @@ const EditorPage = () => {
                       Linked: "{comment.position.text}"
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={() => toggleCommentResolved(comment).catch(console.error)}
-                    className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">
-                      {comment.resolved ? "undo" : "task_alt"}
-                    </span>
-                    {comment.resolved ? "Reopen" : "Resolve"}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => replyToComment(comment)}
+                      className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">reply</span>
+                      Reply
+                    </button>
+                    {(comment.author.email.toLowerCase() === (userEmail || "").toLowerCase() || activeDoc?.role === "owner") ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startCommentEdit(comment)}
+                          className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">edit</span>
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteComment(comment).catch(console.error)}
+                          disabled={deletingCommentId === comment.id}
+                          className="flex items-center gap-1 rounded border border-error/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-error transition hover:bg-error-container/20 disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            {deletingCommentId === comment.id ? "hourglass_empty" : "delete"}
+                          </span>
+                          Delete
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => toggleCommentResolved(comment).catch(console.error)}
+                      className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">
+                        {comment.resolved ? "undo" : "task_alt"}
+                      </span>
+                      {comment.resolved ? "Reopen" : "Resolve"}
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -2048,23 +2724,118 @@ const EditorPage = () => {
             </button>
 
             {versions.length ? (
-              <div className="space-y-3">
-                {versions.map((version) => (
-                  <div key={version.id} className="cursor-pointer space-y-2 rounded-lg border border-white/5 bg-surface-container p-4 transition-colors hover:border-primary/50" onClick={() => {
-                      if (window.confirm("Restore this version? This will replace your current content.")) {
-                        restoreVersion(version).catch(console.error);
-                      }
-                    }}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-white">Snapshot</span>
-                      <span className="text-[9px] text-[#a3a3a3]">{new Date(version.created_at).toLocaleString()}</span>
+              <>
+                {selectedVersion ? (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-widest text-primary">Preview</p>
+                      <span className="text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(selectedVersion)).toLocaleString()}</span>
                     </div>
+                    <p className="mt-3 text-xs leading-relaxed text-[#bbcabf]">{getVersionPreview(selectedVersion)}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                      <div className="rounded bg-surface-container px-2 py-2">
+                        <p className="text-sm font-bold text-white">{getVersionWordCount(selectedVersion)}</p>
+                        <p className="text-[9px] uppercase tracking-widest text-on-surface-variant">Words</p>
+                      </div>
+                      <div className="rounded bg-surface-container px-2 py-2">
+                        <p className="text-sm font-bold text-white">{getVersionCharacterCount(selectedVersion)}</p>
+                        <p className="text-[9px] uppercase tracking-widest text-on-surface-variant">Chars</p>
+                      </div>
+                    </div>
+                    {selectedVersionDelta ? (
+                      <div className="mt-3 rounded border border-white/10 bg-surface-container px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Current is {selectedVersionDelta.words >= 0 ? "+" : ""}{selectedVersionDelta.words} words and {selectedVersionDelta.characters >= 0 ? "+" : ""}{selectedVersionDelta.characters} chars from this snapshot
+                      </div>
+                    ) : null}
+                    {versionDiffBlock}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Restore this version? This will replace your current content.")) {
+                          restoreVersion(selectedVersion).catch(console.error);
+                        }
+                      }}
+                      className="emerald-muted-button mt-3 w-full justify-center"
+                    >
+                      Restore selected
+                    </button>
                   </div>
-                ))}
-              </div>
+                ) : null}
+                <div className="space-y-3">
+                  {versions.map((version) => (
+                    <button
+                      key={version.id}
+                      type="button"
+                      className={`w-full space-y-2 rounded-lg border p-4 text-left transition-colors ${
+                        selectedVersion?.id === version.id
+                          ? "border-primary/50 bg-primary/10"
+                          : "border-white/5 bg-surface-container hover:border-primary/50"
+                      }`}
+                      onClick={() => setSelectedVersionId(version.id)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-bold text-white">Snapshot</span>
+                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(version)).toLocaleString()}</span>
+                      </div>
+                      <p className="line-clamp-2 text-xs leading-relaxed text-on-surface-variant">{getVersionPreview(version)}</p>
+                      <div className="flex items-center justify-between text-[9px] uppercase tracking-widest text-on-surface-variant">
+                        <span>{getVersionWordCount(version)} words</span>
+                        <span>{version.createdBy?.email || "Unknown author"}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="rounded-lg bg-surface-container/50 p-4 text-sm text-on-surface-variant">
                 No saved versions yet.
+              </div>
+            )}
+          </aside>
+        ) : null}
+
+        {showActivity ? (
+          <aside className="hidden w-80 flex-col gap-5 overflow-y-auto border-l border-white/5 bg-surface p-6 xl:flex">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Activity</h4>
+              <button
+                type="button"
+                onClick={() => loadActivity().catch(console.error)}
+                className="rounded p-1.5 text-on-surface-variant transition hover:bg-white/10 hover:text-white"
+                title="Refresh activity"
+              >
+                <span className="material-symbols-outlined text-base">refresh</span>
+              </button>
+            </div>
+
+            {loadingActivity ? (
+              <div className="rounded bg-surface-container/50 p-4 text-sm text-on-surface-variant">Loading...</div>
+            ) : activity.length ? (
+              <div className="space-y-3">
+                {activity.map((item) => {
+                  const metadata = formatActivityMetadata(item.metadata);
+                  return (
+                    <div key={item.id} className="rounded-lg border border-white/5 bg-surface-container p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <span className="material-symbols-outlined text-[18px]">timeline</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white">{formatActivityType(item.type)}</p>
+                          <p className="mt-1 truncate text-[11px] text-on-surface-variant">{item.actor?.email || "System"}</p>
+                          <p className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
+                            {new Date(item.createdAt).toLocaleString()}
+                          </p>
+                          {metadata ? <p className="mt-2 text-xs leading-relaxed text-[#bbcabf]">{metadata}</p> : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded bg-surface-container/50 p-4 text-sm text-on-surface-variant">
+                No activity yet.
               </div>
             )}
           </aside>
@@ -2113,13 +2884,14 @@ const EditorPage = () => {
                   <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
                   <input
                     className="min-w-0 flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
-                    placeholder="Type a comment..."
+                    placeholder={canCommentDocument(activeDoc?.role) ? "Type a comment..." : "View-only access"}
                     value={commentBody}
                     onChange={(event) => setCommentBody(event.target.value)}
                     type="text"
+                    disabled={!canCommentDocument(activeDoc?.role)}
                   />
                 </div>
-                <button type="button" onClick={() => addComment().catch(console.error)} className="emerald-primary-button w-full">
+                <button type="button" onClick={() => addComment().catch(console.error)} disabled={!canCommentDocument(activeDoc?.role)} className="emerald-primary-button w-full">
                   Add Comment
                 </button>
               </div>
@@ -2142,7 +2914,36 @@ const EditorPage = () => {
                           <div className="text-[9px] text-[#a3a3a3]">{new Date(comment.createdAt).toLocaleString()}</div>
                         </div>
                       </div>
-                      <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
+                      {editingCommentId === comment.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            className="emerald-input min-h-[90px] resize-none text-xs"
+                            value={editingCommentBody}
+                            onChange={(event) => setEditingCommentBody(event.target.value)}
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => saveCommentEdit(comment).catch(console.error)}
+                              className="emerald-primary-button justify-center px-3 py-2 text-[10px]"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCommentId("");
+                                setEditingCommentBody("");
+                              }}
+                              className="emerald-muted-button justify-center px-3 py-2 text-[10px]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
+                      )}
                       {comment.position?.text ? (
                         <button
                           type="button"
@@ -2155,16 +2956,49 @@ const EditorPage = () => {
                           Linked: "{comment.position.text}"
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        onClick={() => toggleCommentResolved(comment).catch(console.error)}
-                        className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">
-                          {comment.resolved ? "undo" : "task_alt"}
-                        </span>
-                        {comment.resolved ? "Reopen" : "Resolve"}
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => replyToComment(comment)}
+                          className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">reply</span>
+                          Reply
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleCommentResolved(comment).catch(console.error)}
+                          className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            {comment.resolved ? "undo" : "task_alt"}
+                          </span>
+                          {comment.resolved ? "Reopen" : "Resolve"}
+                        </button>
+                        {(comment.author.email.toLowerCase() === (userEmail || "").toLowerCase() || activeDoc?.role === "owner") ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => startCommentEdit(comment)}
+                              className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">edit</span>
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteComment(comment).catch(console.error)}
+                              disabled={deletingCommentId === comment.id}
+                              className="flex w-full items-center justify-center gap-1 rounded border border-error/20 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-error transition active:bg-error-container/20 disabled:opacity-50"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">
+                                {deletingCommentId === comment.id ? "hourglass_empty" : "delete"}
+                              </span>
+                              Delete
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -2173,6 +3007,72 @@ const EditorPage = () => {
                   </div>
                 )}
               </div>
+            </section>
+          </div>
+        ) : null}
+
+        {mobilePanel === "activity" ? (
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-black/75 xl:hidden"
+            onClick={() => setMobilePanel(null)}
+          >
+            <section
+              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-white/10 bg-surface p-4 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Activity</h4>
+                  <p className="mt-1 text-xs text-primary">{activity.length} events</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel(null)}
+                  className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => loadActivity().catch(console.error)}
+                className="emerald-muted-button mb-4 w-full justify-center"
+              >
+                <span className="material-symbols-outlined text-sm">refresh</span>
+                Refresh
+              </button>
+
+              {loadingActivity ? (
+                <div className="rounded bg-surface-container/50 p-4 text-sm text-on-surface-variant">Loading...</div>
+              ) : activity.length ? (
+                <div className="space-y-3">
+                  {activity.map((item) => {
+                    const metadata = formatActivityMetadata(item.metadata);
+                    return (
+                      <div key={`mobile-activity-${item.id}`} className="rounded-lg border border-white/5 bg-surface-container p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <span className="material-symbols-outlined text-[18px]">timeline</span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white">{formatActivityType(item.type)}</p>
+                            <p className="mt-1 truncate text-[11px] text-on-surface-variant">{item.actor?.email || "System"}</p>
+                            <p className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
+                              {new Date(item.createdAt).toLocaleString()}
+                            </p>
+                            {metadata ? <p className="mt-2 text-xs leading-relaxed text-[#bbcabf]">{metadata}</p> : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-lg bg-surface-container/50 p-4 text-sm text-on-surface-variant">
+                  No activity yet.
+                </div>
+              )}
             </section>
           </div>
         ) : null}
@@ -2211,21 +3111,62 @@ const EditorPage = () => {
 
               {versions.length ? (
                 <div className="space-y-3">
+                  {selectedVersion ? (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-bold uppercase tracking-widest text-primary">Selected snapshot</p>
+                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(selectedVersion)).toLocaleString()}</span>
+                      </div>
+                      <p className="mt-3 text-xs leading-relaxed text-[#bbcabf]">{getVersionPreview(selectedVersion)}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                        <div className="rounded bg-surface-container px-2 py-2">
+                          <p className="text-sm font-bold text-white">{getVersionWordCount(selectedVersion)}</p>
+                          <p className="text-[9px] uppercase tracking-widest text-on-surface-variant">Words</p>
+                        </div>
+                        <div className="rounded bg-surface-container px-2 py-2">
+                          <p className="text-sm font-bold text-white">{getVersionCharacterCount(selectedVersion)}</p>
+                          <p className="text-[9px] uppercase tracking-widest text-on-surface-variant">Chars</p>
+                        </div>
+                      </div>
+                      {selectedVersionDelta ? (
+                        <div className="mt-3 rounded border border-white/10 bg-surface-container px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                          Current is {selectedVersionDelta.words >= 0 ? "+" : ""}{selectedVersionDelta.words} words and {selectedVersionDelta.characters >= 0 ? "+" : ""}{selectedVersionDelta.characters} chars from this snapshot
+                        </div>
+                      ) : null}
+                      {versionDiffBlock}
+                      <button
+                        type="button"
+                        className="emerald-muted-button mt-3 w-full justify-center"
+                        onClick={() => {
+                          if (window.confirm("Restore this version? This will replace your current content.")) {
+                            restoreVersion(selectedVersion).catch(console.error);
+                            setMobilePanel(null);
+                          }
+                        }}
+                      >
+                        Restore selected
+                      </button>
+                    </div>
+                  ) : null}
                   {versions.map((version) => (
                     <button
                       key={`mobile-version-${version.id}`}
                       type="button"
-                      className="w-full space-y-2 rounded-lg border border-white/5 bg-surface-container p-4 text-left transition-colors active:border-primary/50"
-                      onClick={() => {
-                        if (window.confirm("Restore this version? This will replace your current content.")) {
-                          restoreVersion(version).catch(console.error);
-                          setMobilePanel(null);
-                        }
-                      }}
+                      className={`w-full space-y-2 rounded-lg border p-4 text-left transition-colors ${
+                        selectedVersion?.id === version.id
+                          ? "border-primary/50 bg-primary/10"
+                          : "border-white/5 bg-surface-container active:border-primary/50"
+                      }`}
+                      onClick={() => setSelectedVersionId(version.id)}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[11px] font-bold text-white">Snapshot</span>
-                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(version.created_at).toLocaleString()}</span>
+                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(version)).toLocaleString()}</span>
+                      </div>
+                      <p className="line-clamp-2 text-xs leading-relaxed text-on-surface-variant">{getVersionPreview(version)}</p>
+                      <div className="flex items-center justify-between text-[9px] uppercase tracking-widest text-on-surface-variant">
+                        <span>{getVersionWordCount(version)} words</span>
+                        <span>{version.createdBy?.email || "Unknown author"}</span>
                       </div>
                     </button>
                   ))}
@@ -2239,6 +3180,17 @@ const EditorPage = () => {
           </div>
         ) : null}
       </div>
+
+      {focusMode ? (
+        <button
+          type="button"
+          onClick={() => setFocusMode(false)}
+          className="fixed bottom-4 right-4 z-[90] flex items-center gap-2 rounded-full border border-white/10 bg-[#131313] px-4 py-3 text-xs font-bold uppercase tracking-widest text-white shadow-2xl md:hidden"
+        >
+          <span className="material-symbols-outlined text-base">close_fullscreen</span>
+          Exit focus
+        </button>
+      ) : null}
 
       {shareModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 px-0 sm:items-center sm:px-4">
@@ -2258,6 +3210,46 @@ const EditorPage = () => {
             </div>
 
             <div className="space-y-5">
+              <div className="rounded border border-white/5 bg-surface p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Access link</p>
+                    <p className="mt-1 break-all text-sm text-white">{window.location.href}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyDocumentLink().catch(console.error)}
+                    className="emerald-muted-button w-full justify-center sm:w-auto"
+                  >
+                    <span className="material-symbols-outlined text-sm">content_copy</span>
+                    {shareCopied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+                  <div className="rounded bg-surface-container-high px-3 py-2">
+                    <p className="text-lg font-bold text-white">{activeDoc?.collaborators.length || 0}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">People</p>
+                  </div>
+                  <div className="rounded bg-surface-container-high px-3 py-2">
+                    <p className="text-lg font-bold text-primary">
+                      {activeDoc?.collaborators.filter((item) => item.role === "editor").length || 0}
+                    </p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Editors</p>
+                  </div>
+                  <div className="rounded bg-surface-container-high px-3 py-2">
+                    <p className="text-lg font-bold text-on-surface-variant">
+                      {activeDoc?.collaborators.filter((item) => item.role === "viewer").length || 0}
+                    </p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Viewers</p>
+                  </div>
+                  <div className="rounded bg-surface-container-high px-3 py-2">
+                    <p className="text-lg font-bold text-secondary">
+                      {activeDoc?.collaborators.filter((item) => item.role === "commenter").length || 0}
+                    </p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Commenters</p>
+                  </div>
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="share-emails">
                   Collaborator Emails
@@ -2286,6 +3278,7 @@ const EditorPage = () => {
                   onChange={(event) => setShareRole(event.target.value as ShareRole)}
                 >
                   <option value="editor">Editor</option>
+                  <option value="commenter">Commenter</option>
                   <option value="viewer">Viewer</option>
                 </select>
               </div>
@@ -2299,7 +3292,7 @@ const EditorPage = () => {
                   value={tagInput}
                   onChange={(event) => setTagInput(event.target.value)}
                   placeholder="product, roadmap, q2"
-                  disabled={activeDoc?.role === "viewer"}
+                  disabled={!canEditDocument(activeDoc?.role)}
                 />
               </div>
               <div className="rounded border border-white/5 bg-surface p-4">
@@ -2308,23 +3301,58 @@ const EditorPage = () => {
 	                  {activeDoc?.collaborators.length ? (
 	                    activeDoc.collaborators.map((item) => (
 	                      <div key={`${item.id}-${item.email}`} className="flex flex-col items-start justify-between gap-3 rounded bg-surface-container-high p-3 text-sm text-white sm:flex-row sm:items-center">
-	                        <span className="max-w-full min-w-0 truncate">{item.email}</span>
-	                        <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-start">
-	                          <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(item.role)}`}>
-	                            {item.role}
+	                        <div className="min-w-0">
+	                          <span className="block max-w-full truncate">{item.email}</span>
+	                          <span className="mt-1 block text-[10px] uppercase tracking-widest text-on-surface-variant">
+	                            {item.role === "editor"
+                                ? "Can edit and comment"
+                                : item.role === "commenter"
+                                  ? "Can comment only"
+                                  : "Can view only"}
 	                          </span>
+	                        </div>
+	                        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
 	                          {activeDoc?.role === "owner" ? (
-	                            <button
-	                              type="button"
-	                              onClick={() => removeCollaborator(item.email).catch(console.error)}
+	                            <select
+	                              value={item.role}
 	                              disabled={savingShare || removingCollaboratorEmail === item.email}
-	                              title={`Remove ${item.email}`}
-	                              className="flex h-8 w-8 items-center justify-center rounded border border-red-500/20 bg-red-500/10 text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+	                              onChange={(event) => changeCollaboratorRole(item.email, event.target.value as ShareRole).catch(console.error)}
+	                              className="h-8 rounded border border-white/10 bg-surface px-2 text-xs font-semibold text-white outline-none"
 	                            >
-	                              <span className="material-symbols-outlined text-[17px]">
-	                                {removingCollaboratorEmail === item.email ? "hourglass_empty" : "person_remove"}
-	                              </span>
-	                            </button>
+	                              <option value="editor">Editor</option>
+	                              <option value="commenter">Commenter</option>
+	                              <option value="viewer">Viewer</option>
+	                            </select>
+	                          ) : (
+	                            <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(item.role)}`}>
+	                              {item.role}
+	                            </span>
+	                          )}
+	                          {activeDoc?.role === "owner" ? (
+	                            <>
+	                              <button
+	                                type="button"
+	                                onClick={() => resendCollaboratorAccess(item.email).catch(console.error)}
+	                                disabled={savingShare || removingCollaboratorEmail === item.email}
+	                                title={`Resend access to ${item.email}`}
+	                                className="flex h-8 w-8 items-center justify-center rounded border border-white/10 bg-surface text-on-surface-variant transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+	                              >
+	                                <span className="material-symbols-outlined text-[17px]">
+	                                  {removingCollaboratorEmail === item.email ? "hourglass_empty" : "forward_to_inbox"}
+	                                </span>
+	                              </button>
+	                              <button
+	                                type="button"
+	                                onClick={() => removeCollaborator(item.email).catch(console.error)}
+	                                disabled={savingShare || removingCollaboratorEmail === item.email}
+	                                title={`Remove ${item.email}`}
+	                                className="flex h-8 w-8 items-center justify-center rounded border border-error/20 bg-error-container/20 text-error transition hover:bg-error-container/30 disabled:cursor-not-allowed disabled:opacity-50"
+	                              >
+	                                <span className="material-symbols-outlined text-[17px]">
+	                                  {removingCollaboratorEmail === item.email ? "hourglass_empty" : "person_remove"}
+	                                </span>
+	                              </button>
+	                            </>
 	                          ) : null}
 	                        </div>
 	                      </div>
@@ -2334,11 +3362,36 @@ const EditorPage = () => {
                   )}
                 </div>
               </div>
+              {activeDoc?.role === "owner" ? (
+                <div className="rounded border border-white/5 bg-surface p-4">
+                  <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Owner transfer</p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      className="emerald-input min-w-0 flex-1"
+                      value={transferOwnerEmail}
+                      onChange={(event) => setTransferOwnerEmail(event.target.value)}
+                      placeholder="next.owner@example.com"
+                      type="email"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => transferOwnership().catch(console.error)}
+                      disabled={transferringOwner}
+                      className="emerald-muted-button justify-center sm:w-auto"
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        {transferringOwner ? "hourglass_empty" : "admin_panel_settings"}
+                      </span>
+                      Transfer
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <button
                   type="button"
                   onClick={() => saveTags().catch(console.error)}
-                  disabled={savingTags || activeDoc?.role === "viewer"}
+                  disabled={savingTags || !canEditDocument(activeDoc?.role)}
                   className="emerald-muted-button w-full sm:w-auto"
                 >
                   {savingTags ? "Saving tags..." : "Save tags"}

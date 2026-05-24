@@ -18,10 +18,22 @@ type AccessibleDocument = {
   title: string;
   content: string;
   owner_id: string;
+  folder_id?: string | null;
   updated_at: string;
   created_at: string;
   deleted_at?: string | null;
 };
+
+type CollaboratorRole = "editor" | "commenter" | "viewer";
+type DocumentRole = "owner" | CollaboratorRole;
+
+const normalizeRole = (role: unknown): CollaboratorRole => {
+  if (role === "viewer") return "viewer";
+  if (role === "commenter") return "commenter";
+  return "editor";
+};
+
+const canEditDocument = (role: DocumentRole | null) => role === "owner" || role === "editor";
 
 const normalizeTags = (raw: unknown) => {
   if (!Array.isArray(raw)) {
@@ -75,7 +87,7 @@ const buildPdfBuffer = (title: string, text: string) =>
 const getAccessibleDocuments = async (userId: string): Promise<AccessibleDocument[]> => {
   const { data: ownedDocs, error: ownedError } = await supabase
     .from("documents")
-    .select("id,title,content,owner_id,updated_at,created_at")
+    .select("id,title,content,owner_id,folder_id,updated_at,created_at,deleted_at")
     .eq("owner_id", userId);
 
   if (ownedError) {
@@ -97,7 +109,7 @@ const getAccessibleDocuments = async (userId: string): Promise<AccessibleDocumen
   if (collabDocIds.length > 0) {
     const { data, error } = await supabase
       .from("documents")
-      .select("id,title,content,owner_id,updated_at,created_at")
+      .select("id,title,content,owner_id,folder_id,updated_at,created_at,deleted_at")
       .in("id", collabDocIds);
 
     if (error) {
@@ -140,15 +152,86 @@ const loadTagsByDocumentIds = async (documentIds: string[]) => {
   return map;
 };
 
+const loadCommentsByDocumentIds = async (documentIds: string[]) => {
+  if (!documentIds.length) {
+    return new Map<string, Array<{ id: string; content: string; author: string }>>();
+  }
+
+  const { data, error } = await supabase
+    .from("comments")
+    .select("id, document_id, user_id, content")
+    .in("document_id", documentIds)
+    .limit(1000);
+
+  if (error) {
+    throw error;
+  }
+
+  const map = new Map<string, Array<{ id: string; content: string; author: string }>>();
+  (data || []).forEach((row: any) => {
+    const existing = map.get(row.document_id) || [];
+    existing.push({
+      id: String(row.id),
+      content: String(row.content || ""),
+      author: emailFromUserId(row.user_id),
+    });
+    map.set(row.document_id, existing);
+  });
+
+  return map;
+};
+
+const loadCollaboratorsByDocumentIds = async (documentIds: string[]) => {
+  if (!documentIds.length) {
+    return new Map<string, Array<{ email: string; role: CollaboratorRole }>>();
+  }
+
+  const { data, error } = await supabase
+    .from("document_collaborators")
+    .select("document_id, user_id, role")
+    .in("document_id", documentIds);
+
+  if (error) {
+    throw error;
+  }
+
+  const map = new Map<string, Array<{ email: string; role: CollaboratorRole }>>();
+  (data || []).forEach((row: any) => {
+    const existing = map.get(row.document_id) || [];
+    existing.push({ email: emailFromUserId(row.user_id), role: normalizeRole(row.role) });
+    map.set(row.document_id, existing);
+  });
+
+  return map;
+};
+
+const loadFolderNamesByIds = async (folderIds: string[]) => {
+  const uniqueIds = [...new Set(folderIds.filter(Boolean))];
+  if (!uniqueIds.length) {
+    return new Map<string, string>();
+  }
+
+  const { data, error } = await supabase
+    .from("folders")
+    .select("id, name")
+    .in("id", uniqueIds);
+
+  if (error) {
+    throw error;
+  }
+
+  return new Map((data || []).map((row: any) => [row.id, String(row.name || "")]));
+};
+
 const getDocumentAndRole = async (documentId: string, userId: string) => {
   const { data: doc, error } = await supabase
     .from("documents")
-    .select("id,title,content,owner_id,updated_at,created_at,document_collaborators(user_id,role)")
+    .select("id,title,content,owner_id,updated_at,created_at,deleted_at,document_collaborators(user_id,role)")
     .eq("id", documentId)
     .single();
 
-  if (error || !doc) {
-    return { doc: null, role: null as null | "owner" | "editor" | "viewer" };
+  if (error || !doc || doc.deleted_at) {
+    return { doc: null, role: null as null | DocumentRole };
   }
 
   if (doc.owner_id === userId) {
@@ -157,10 +240,10 @@ const getDocumentAndRole = async (documentId: string, userId: string) => {
 
   const collaborator = (doc.document_collaborators || []).find((item: any) => item.user_id === userId);
   if (!collaborator) {
-    return { doc: null, role: null as null | "owner" | "editor" | "viewer" };
+    return { doc: null, role: null as null | DocumentRole };
   }
 
-  return { doc, role: collaborator.role === "viewer" ? "viewer" : "editor" };
+  return { doc, role: normalizeRole(collaborator.role) };
 };
 
 const syncDocumentTags = async (documentId: string, tags: string[]) => {
@@ -198,13 +281,24 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
     }
 
     const docs = await getAccessibleDocuments(userId);
-    const tagsByDocId = await loadTagsByDocumentIds(docs.map((doc) => doc.id)).catch(() => new Map());
+    const documentIds = docs.map((doc) => doc.id);
+    const [tagsByDocId, commentsByDocId, collaboratorsByDocId, folderNamesById] = await Promise.all([
+      loadTagsByDocumentIds(documentIds).catch(() => new Map<string, string[]>()),
+      loadCommentsByDocumentIds(documentIds).catch(() => new Map<string, Array<{ id: string; content: string; author: string }>>()),
+      loadCollaboratorsByDocumentIds(documentIds).catch(() => new Map<string, Array<{ email: string; role: CollaboratorRole }>>()),
+      loadFolderNamesByIds(docs.map((doc) => doc.folder_id || "").filter(Boolean)).catch(() => new Map<string, string>()),
+    ]);
 
     const results = docs
       .map((doc) => {
         const text = stripHtml(doc.content || "");
         const tags: string[] = tagsByDocId.get(doc.id) || [];
-        const haystack = `${doc.title} ${text} ${tags.join(" ")}`.toLowerCase();
+        const commentText = (commentsByDocId.get(doc.id) || []).map((comment) => stripHtml(comment.content)).join(" ");
+        const collaborators = collaboratorsByDocId.get(doc.id) || [];
+        const collaboratorText = collaborators.map((collaborator) => `${collaborator.email} ${collaborator.role}`).join(" ");
+        const ownerEmail = emailFromUserId(doc.owner_id);
+        const folderName = doc.folder_id ? folderNamesById.get(doc.folder_id) || "" : "";
+        const haystack = `${doc.title} ${text} ${tags.join(" ")} ${commentText} ${collaboratorText} ${ownerEmail} ${folderName}`.toLowerCase();
 
         const matchesQuery = !query || haystack.includes(query);
         const matchesTags = !selectedTags.length || selectedTags.every((tag) => tags.includes(tag));
@@ -221,6 +315,15 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
           if (text.toLowerCase().includes(query)) {
             score += 5;
           }
+          if (commentText.toLowerCase().includes(query)) {
+            score += 4;
+          }
+          if (collaboratorText.toLowerCase().includes(query) || ownerEmail.toLowerCase().includes(query)) {
+            score += 3;
+          }
+          if (folderName.toLowerCase().includes(query)) {
+            score += 2;
+          }
           score += tags.filter((tag) => tag.includes(query)).length * 2;
         }
 
@@ -232,8 +335,16 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
         return {
           id: doc.id,
           title: doc.title,
-          snippet: buildSnippet(text),
+          snippet: buildSnippet(text || commentText || folderName || ownerEmail),
           tags,
+          owner: { id: doc.owner_id, email: ownerEmail },
+          folder: doc.folder_id ? { id: doc.folder_id, name: folderName } : null,
+          collaborators: collaborators.slice(0, 12),
+          matchedComments: (commentsByDocId.get(doc.id) || []).slice(0, 3).map((comment) => ({
+            id: comment.id,
+            body: buildSnippet(stripHtml(comment.content), 140),
+            author: comment.author,
+          })),
           updatedAt: doc.updated_at,
           score,
         };
@@ -305,9 +416,12 @@ export const getDocumentTags = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { doc } = await getDocumentAndRole(req.params.id, auth.userId);
+    const { doc, role } = await getDocumentAndRole(req.params.id, auth.userId);
     if (!doc) {
       return res.status(404).json({ message: "Document nahi mila" });
+    }
+    if (!canEditDocument(role)) {
+      return res.status(403).json({ message: "Only owners and editors can export documents" });
     }
 
     const tagsByDoc = await loadTagsByDocumentIds([req.params.id]).catch(() => new Map());
@@ -335,8 +449,8 @@ export const updateDocumentTags = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Document nahi mila" });
     }
 
-    if (role === "viewer") {
-      return res.status(403).json({ message: "Viewer tags update nahi kar sakta" });
+    if (!canEditDocument(role)) {
+      return res.status(403).json({ message: "Only owners and editors can update tags" });
     }
 
     const tags = normalizeTags(req.body.tags);

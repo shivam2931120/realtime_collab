@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc --ignoreDeprecations 5.0",
+    "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "start": "node dist/server.js",
     "db:check": "tsx ./scripts/check-supabase-schema.ts",
     "email:check": "tsx ./scripts/check-emailjs.ts",

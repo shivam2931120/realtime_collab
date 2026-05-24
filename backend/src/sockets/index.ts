@@ -28,9 +28,10 @@ type PresenceEntry = {
 
 type DocumentRow = {
   owner_id: string;
+  deleted_at?: string | null;
   document_collaborators?: Array<{
     user_id: string;
-    role: "owner" | "editor" | "viewer";
+    role: "editor" | "commenter" | "viewer";
   }>;
 };
 
@@ -107,7 +108,7 @@ export const setupSockets = (io: Server) => {
 
         const doc = await fetchDocumentForAccess(documentId);
 
-        if (!doc) {
+        if (!doc || doc.deleted_at) {
           socket.emit("doc-error", { message: "Document access denied" });
           return;
         }
@@ -153,7 +154,7 @@ export const setupSockets = (io: Server) => {
 
         const role = getRoleForUser(doc, activeUser.id);
 
-        if (role === "viewer" || !role) {
+        if (!role || role === "viewer" || role === "commenter") {
           return;
         }
 

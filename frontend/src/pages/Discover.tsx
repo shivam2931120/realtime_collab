@@ -189,6 +189,25 @@ const DiscoverPage = () => {
                   <p className="mt-2 text-sm text-on-surface-variant">
                     <HighlightText value={item.snippet || "No preview available"} query={query.trim()} />
                   </p>
+                  {(item.owner || item.folder || item.collaborators?.length) ? (
+                    <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-widest text-on-surface-variant">
+                      {item.owner ? <span>Owner: {item.owner.email}</span> : null}
+                      {item.folder ? <span>Folder: {item.folder.name}</span> : null}
+                      {item.collaborators?.length ? <span>{item.collaborators.length} collaborators</span> : null}
+                    </div>
+                  ) : null}
+                  {item.matchedComments?.length ? (
+                    <div className="mt-3 rounded border border-white/5 bg-surface-container p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Comment matches</p>
+                      <div className="mt-2 space-y-1">
+                        {item.matchedComments.slice(0, 2).map((comment) => (
+                          <p key={comment.id} className="line-clamp-1 text-xs text-on-surface-variant">
+                            <HighlightText value={`${comment.author}: ${comment.body}`} query={query.trim()} />
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.tags.map((tag) => (
                       <span

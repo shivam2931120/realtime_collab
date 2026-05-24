@@ -1,11 +1,14 @@
 import { create } from "zustand";
 
-export type DocumentRole = "owner" | "editor" | "viewer";
+export type DocumentRole = "owner" | "editor" | "commenter" | "viewer";
 
 export type Collaborator = {
   id: string;
   email: string;
-  role: "editor" | "viewer";
+  role: "editor" | "commenter" | "viewer";
+  invitationStatus?: "pending" | "accepted" | "cancelled";
+  lastInviteSentAt?: string | null;
+  inviteEmailStatus?: string | null;
 };
 
 export type DocItem = {
@@ -20,6 +23,7 @@ export type DocItem = {
   role: DocumentRole;
   folderId?: string | null;
   tags?: string[];
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

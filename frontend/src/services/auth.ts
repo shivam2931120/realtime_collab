@@ -10,6 +10,7 @@ type SessionPayload = {
 };
 
 const STORAGE_KEY = "editorial.session";
+const LEGACY_STORAGE_KEY = "editorial.session";
 
 const safeParse = (value: string | null): SessionPayload | null => {
   if (!value) return null;
@@ -24,7 +25,7 @@ const safeParse = (value: string | null): SessionPayload | null => {
   }
 };
 
-export const getStoredSession = () => safeParse(localStorage.getItem(STORAGE_KEY));
+export const getStoredSession = () => safeParse(localStorage.getItem(STORAGE_KEY)) || safeParse(localStorage.getItem(LEGACY_STORAGE_KEY));
 
 export const getAuthToken = () => getStoredSession()?.token || null;
 export const getRefreshToken = () => getStoredSession()?.refreshToken || null;
@@ -35,4 +36,5 @@ export const saveSession = (payload: SessionPayload) => {
 
 export const clearSession = () => {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
 };

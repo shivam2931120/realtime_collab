@@ -1,6 +1,7 @@
-import { ReactNode, useEffect, useMemo } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import NotificationMenu from "./NotificationMenu";
+import CommandPalette from "./CommandPalette";
 import api from "../services/api";
 import { disconnectSocket } from "../services/socket";
 import { useUiStore } from "../store/uiStore";
@@ -36,6 +37,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   const [searchParams, setSearchParams] = useSearchParams();
   const searchTerm = useUiStore((state) => state.searchTerm);
   const setSearchTerm = useUiStore((state) => state.setSearchTerm);
+  const [commandOpen, setCommandOpen] = useState(false);
   
   const clearSession = useAuthStore((state) => state.clearSession);
   const refreshToken = useAuthStore((state) => state.refreshToken);
@@ -50,6 +52,18 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   useEffect(() => {
     setSearchTerm(searchParams.get("q") || "");
   }, [searchParams]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleLogout = async () => {
     if (refreshToken) {
@@ -86,10 +100,10 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
 
   return (
     <div className="min-h-screen bg-background text-on-background">
-      <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-surface px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
+      <header className="fixed left-0 right-0 top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-surface px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
         <div className="flex items-center gap-3 md:gap-8">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" className="h-7 object-contain sm:h-8" />
+            <img src="/logo.png" alt="Editorial logo" className="h-7 object-contain sm:h-8" />
             <span className="hidden text-base font-bold uppercase tracking-tighter text-white min-[360px]:inline sm:text-xl">
               Editorial
             </span>
@@ -107,6 +121,14 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4">
+          <button
+            type="button"
+            onClick={() => setCommandOpen(true)}
+            className="rounded p-2 text-[#a3a3a3] transition-colors duration-200 hover:bg-[#201f1f] active:scale-90"
+            title="Command palette"
+          >
+            <span className="material-symbols-outlined">bolt</span>
+          </button>
           <NotificationMenu />
           <button
             type="button"
@@ -137,7 +159,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex pt-14">
         <aside
           className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 transition-[width] duration-200 md:flex ${
             sidebarCollapsed ? "w-20" : "w-64"
@@ -155,7 +177,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
               </div>
               {!sidebarCollapsed ? (
                 <div className="min-w-0">
-                  <h2 className="text-lg font-bold leading-tight text-white">Main Lab</h2>
+                  <h2 className="text-lg font-bold leading-tight text-white">Editorial</h2>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-primary-container">
                     Pro Plan
                   </p>
@@ -239,6 +261,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
           ))}
         </nav>
       </div>
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
     </div>
   );
 };

@@ -228,7 +228,7 @@ export const sendDocumentSharedEmail = async (payload: {
   actorEmail: string;
   documentTitle: string;
   documentUrl: string;
-  role: "editor" | "viewer";
+  role: "editor" | "commenter" | "viewer";
 }) => {
   const safeTitle = escapeHtml(payload.documentTitle);
   const safeActor = escapeHtml(payload.actorEmail);

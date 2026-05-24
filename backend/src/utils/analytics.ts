@@ -7,7 +7,12 @@ export type DocumentEventType =
   | "document_shared"
   | "document_commented"
   | "document_exported"
-  | "document_imported";
+  | "document_imported"
+  | "document_deleted"
+  | "document_restored"
+  | "document_ownership_transferred"
+  | "document_bulk_action"
+  | "document_invite_cancelled";
 
 export const trackDocumentEvent = async (payload: {
   documentId: string;

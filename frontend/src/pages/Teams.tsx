@@ -4,17 +4,52 @@ import WorkspaceLayout from "../components/WorkspaceLayout";
 import api from "../services/api";
 import { DocItem, useDocStore } from "../store/docStore";
 
+type AccessOverview = {
+  summary: {
+    documents: number;
+    users: number;
+    permissions: number;
+    owners: number;
+    editors: number;
+    commenters?: number;
+    viewers: number;
+  };
+  users: Array<{
+    id: string;
+    email: string;
+    ownedDocuments: number;
+    sharedDocuments: number;
+    roles: string[];
+  }>;
+  permissions: Array<{
+    documentId: string;
+    title: string;
+    userId: string;
+    email: string;
+    role: "owner" | "editor" | "commenter" | "viewer";
+    canEdit: boolean;
+    canShare: boolean;
+    grantedAt: string;
+  }>;
+};
+
 const TeamsPage = () => {
   const [searchParams] = useSearchParams();
   const docs = useDocStore((state) => state.docs);
   const setDocs = useDocStore((state) => state.setDocs);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"owner" | "editor" | "viewer">("owner");
+  const [activeTab, setActiveTab] = useState<"owner" | "editor" | "commenter" | "viewer">("owner");
+  const [accessOverview, setAccessOverview] = useState<AccessOverview | null>(null);
 
   useEffect(() => {
-    api
-      .get<{ documents: DocItem[] }>("/docs")
-      .then((response) => setDocs(response.data.documents))
+    Promise.all([
+      api.get<{ documents: DocItem[] }>("/docs"),
+      api.get<AccessOverview>("/docs/access/overview"),
+    ])
+      .then(([docsResponse, accessResponse]) => {
+        setDocs(docsResponse.data.documents);
+        setAccessOverview(accessResponse.data);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -36,14 +71,27 @@ const TeamsPage = () => {
     });
   }, [docs, searchParams, activeTab]);
 
-  const tabConfig: Array<{ key: "owner" | "editor" | "viewer"; label: string }> = [
+  const tabConfig: Array<{ key: "owner" | "editor" | "commenter" | "viewer"; label: string }> = [
     { key: "owner", label: "Owner Docs" },
     { key: "editor", label: "Editor Docs" },
+    { key: "commenter", label: "Commenter Docs" },
     { key: "viewer", label: "Viewer Docs" },
   ];
 
   const avatarForEmail = (email: string) =>
     `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(email.toLowerCase())}`;
+
+  const filteredPermissions = useMemo(() => {
+    const query = searchParams.get("q")?.trim().toLowerCase() || "";
+    const permissions = accessOverview?.permissions || [];
+    if (!query) return permissions;
+
+    return permissions.filter((permission) =>
+      permission.title.toLowerCase().includes(query) ||
+      permission.email.toLowerCase().includes(query) ||
+      permission.role.toLowerCase().includes(query),
+    );
+  }, [accessOverview?.permissions, searchParams]);
 
   const membersForDoc = (doc: DocItem) => {
     const all = [
@@ -51,7 +99,7 @@ const TeamsPage = () => {
       ...doc.collaborators.map((item) => ({ email: item.email, role: item.role })),
     ];
 
-    const unique = new Map<string, { email: string; role: "owner" | "editor" | "viewer" }>();
+    const unique = new Map<string, { email: string; role: "owner" | "editor" | "commenter" | "viewer" }>();
     all.forEach((member) => {
       if (!unique.has(member.email)) {
         unique.set(member.email, member);
@@ -63,6 +111,69 @@ const TeamsPage = () => {
 
   return (
     <WorkspaceLayout pageLabel="Collaboration Network" title="Team">
+      {accessOverview ? (
+        <>
+          <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
+            {[
+              { label: "Docs", value: accessOverview.summary.documents },
+              { label: "Users", value: accessOverview.summary.users },
+              { label: "Permissions", value: accessOverview.summary.permissions },
+              { label: "Owners", value: accessOverview.summary.owners },
+              { label: "Editors", value: accessOverview.summary.editors },
+              { label: "Commenters", value: accessOverview.summary.commenters || 0 },
+              { label: "Viewers", value: accessOverview.summary.viewers },
+            ].map((item) => (
+              <div key={item.label} className="rounded border border-white/5 bg-surface-container p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{item.label}</p>
+                <p className="mt-3 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
+              </div>
+            ))}
+          </section>
+
+          <section className="mb-8 rounded border border-white/5 bg-surface-container p-4">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Access Control</p>
+                <h2 className="mt-1 text-xl font-bold text-white">Permissions overview</h2>
+              </div>
+              <span className="text-xs text-on-surface-variant">{filteredPermissions.length} visible grants</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-[10px] uppercase tracking-widest text-on-surface-variant">
+                  <tr className="border-b border-white/5">
+                    <th className="py-3 pr-4 font-bold">Document</th>
+                    <th className="py-3 pr-4 font-bold">User</th>
+                    <th className="py-3 pr-4 font-bold">Role</th>
+                    <th className="py-3 pr-4 font-bold">Access</th>
+                    <th className="py-3 pr-4 font-bold">Granted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPermissions.slice(0, 40).map((permission) => (
+                    <tr key={`${permission.documentId}-${permission.userId}-${permission.role}`} className="border-b border-white/5">
+                      <td className="max-w-[220px] truncate py-3 pr-4 text-white">{permission.title}</td>
+                      <td className="max-w-[260px] truncate py-3 pr-4 text-on-surface-variant">{permission.email}</td>
+                      <td className="py-3 pr-4">
+                        <span className="rounded bg-primary/15 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                          {permission.role}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-xs text-on-surface-variant">
+                        {permission.canShare ? "edit, share" : permission.canEdit ? "edit" : "view"}
+                      </td>
+                      <td className="py-3 pr-4 text-xs text-on-surface-variant">
+                        {new Date(permission.grantedAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      ) : null}
+
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {tabConfig.map((tab) => (
           <button

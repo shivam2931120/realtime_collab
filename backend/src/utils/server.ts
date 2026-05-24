@@ -62,7 +62,21 @@ export const createServer = () => {
   const isAllowedOrigin = (origin?: string) => {
     if (!origin) return true;
     if (allowAllOrigins) return true;
-    return allowedOrigins.includes(normalizeOrigin(origin));
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (allowedOrigins.includes(normalizedOrigin)) return true;
+
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        const parsedOrigin = new URL(normalizedOrigin);
+        const isLoopback = ["localhost", "127.0.0.1", "::1"].includes(parsedOrigin.hostname);
+        const isDevPort = ["5173", "4173"].includes(parsedOrigin.port);
+        if (isLoopback && isDevPort) return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
   };
 
   const corsOrigin = (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {

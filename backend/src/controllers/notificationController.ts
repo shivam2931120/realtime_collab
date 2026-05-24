@@ -32,12 +32,24 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
     if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
     const userId = auth.userId;
 
-    const { data: notifications } = await supabase
+    const requestedLimit = Number(req.query.limit || 25);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(100, Math.max(1, requestedLimit))
+      : 25;
+    const unreadOnly = String(req.query.unreadOnly || "false") === "true";
+
+    let notificationsQuery = supabase
       .from("notifications")
       .select("*, documents(title)")
       .eq("recipient_id", userId)
       .order("created_at", { ascending: false })
-      .limit(25);
+      .limit(limit);
+
+    if (unreadOnly) {
+      notificationsQuery = notificationsQuery.eq("read", false);
+    }
+
+    const { data: notifications } = await notificationsQuery;
 
     const { count: unreadCount } = await supabase
       .from("notifications")
@@ -123,5 +135,30 @@ export const markAllNotificationsRead = async (req: AuthRequest, res: Response) 
       });
     }
     return res.status(500).json({ message: "Notifications update nahi hui" });
+  }
+};
+
+export const deleteNotification = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { error } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("id", req.params.id)
+      .eq("recipient_id", auth.userId);
+
+    if (error) throw error;
+
+    return res.json({ success: true, id: req.params.id });
+  } catch (error) {
+    console.error("Delete notification failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({
+        message: "Database not initialized. Run supabase_schema.sql before using notifications.",
+      });
+    }
+    return res.status(500).json({ message: "Notification delete nahi hui" });
   }
 };

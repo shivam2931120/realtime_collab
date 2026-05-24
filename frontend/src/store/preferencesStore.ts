@@ -5,6 +5,10 @@ type DocumentPreference = {
   pinned?: boolean;
 };
 
+type FolderPreference = {
+  favorite?: boolean;
+};
+
 export type ProfilePreferences = {
   displayName: string;
   avatarColor: string;
@@ -13,15 +17,18 @@ export type ProfilePreferences = {
 
 type PreferencesState = {
   documentPreferences: Record<string, DocumentPreference>;
+  folderPreferences: Record<string, FolderPreference>;
   profile: ProfilePreferences;
   sidebarCollapsed: boolean;
   toggleStarred: (documentId: string) => void;
   togglePinned: (documentId: string) => void;
+  toggleFolderFavorite: (folderId: string) => void;
   updateProfile: (profile: ProfilePreferences) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
 };
 
 const STORAGE_KEY = "editorial.preferences.v1";
+const LEGACY_STORAGE_KEY = "editorial.preferences.v1";
 
 const defaultProfile: ProfilePreferences = {
   displayName: "",
@@ -34,26 +41,27 @@ const hasStorage = () => typeof window !== "undefined" && Boolean(window.localSt
 const loadPreferences = () => {
   try {
     if (!hasStorage()) {
-      return { documentPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
+      return { documentPreferences: {}, folderPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
     }
 
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) {
-      return { documentPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
+      return { documentPreferences: {}, folderPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
     }
 
     const parsed = JSON.parse(raw);
     return {
       documentPreferences: parsed.documentPreferences || {},
+      folderPreferences: parsed.folderPreferences || {},
       profile: { ...defaultProfile, ...(parsed.profile || {}) },
       sidebarCollapsed: Boolean(parsed.sidebarCollapsed),
     };
   } catch {
-    return { documentPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
+    return { documentPreferences: {}, folderPreferences: {}, profile: defaultProfile, sidebarCollapsed: false };
   }
 };
 
-const persistPreferences = (state: Pick<PreferencesState, "documentPreferences" | "profile" | "sidebarCollapsed">) => {
+const persistPreferences = (state: Pick<PreferencesState, "documentPreferences" | "folderPreferences" | "profile" | "sidebarCollapsed">) => {
   if (!hasStorage()) {
     return;
   }
@@ -62,6 +70,7 @@ const persistPreferences = (state: Pick<PreferencesState, "documentPreferences" 
     STORAGE_KEY,
     JSON.stringify({
       documentPreferences: state.documentPreferences,
+      folderPreferences: state.folderPreferences,
       profile: state.profile,
       sidebarCollapsed: state.sidebarCollapsed,
     }),
@@ -72,6 +81,7 @@ const initialPreferences = loadPreferences();
 
 export const usePreferencesStore = create<PreferencesState>((set) => ({
   documentPreferences: initialPreferences.documentPreferences,
+  folderPreferences: initialPreferences.folderPreferences,
   profile: initialPreferences.profile,
   sidebarCollapsed: initialPreferences.sidebarCollapsed,
   toggleStarred: (documentId) =>
@@ -95,6 +105,19 @@ export const usePreferencesStore = create<PreferencesState>((set) => ({
         documentPreferences: {
           ...state.documentPreferences,
           [documentId]: { ...current, pinned: !current.pinned },
+        },
+      };
+      persistPreferences(next);
+      return next;
+    }),
+  toggleFolderFavorite: (folderId) =>
+    set((state) => {
+      const current = state.folderPreferences[folderId] || {};
+      const next = {
+        ...state,
+        folderPreferences: {
+          ...state.folderPreferences,
+          [folderId]: { ...current, favorite: !current.favorite },
         },
       };
       persistPreferences(next);

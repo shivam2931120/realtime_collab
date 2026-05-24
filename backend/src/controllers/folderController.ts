@@ -3,6 +3,31 @@ import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
 import { isMissingTableError } from "../utils/dbErrors";
 
+const wouldCreateFolderCycle = async (folderId: string, parentId: string | null, ownerId: string) => {
+  if (!parentId) return false;
+
+  const { data: folders, error } = await supabase
+    .from("folders")
+    .select("id, parent_id")
+    .eq("owner_id", ownerId);
+  if (error) throw error;
+
+  const parentById = new Map<string, string | null>(
+    (folders || []).map((folder: any) => [folder.id, folder.parent_id || null]),
+  );
+  const visited = new Set<string>();
+  let cursor: string | null = parentId;
+
+  while (cursor) {
+    if (cursor === folderId) return true;
+    if (visited.has(cursor)) return true;
+    visited.add(cursor);
+    cursor = parentById.get(cursor) || null;
+  }
+
+  return false;
+};
+
 export const createFolder = async (req: AuthRequest, res: Response) => {
   try {
     const auth = req.auth;
@@ -12,6 +37,17 @@ export const createFolder = async (req: AuthRequest, res: Response) => {
     const name = String(req.body.name || "").trim();
     if (!name) return res.status(400).json({ message: "Folder name required" });
     const parentId = req.body.parent_id || null;
+
+    if (parentId) {
+      const { data: parent } = await supabase
+        .from("folders")
+        .select("id, owner_id")
+        .eq("id", parentId)
+        .single();
+      if (!parent || parent.owner_id !== userId) {
+        return res.status(400).json({ message: "Target folder not found" });
+      }
+    }
 
     const { data: folder, error } = await supabase
       .from("folders")
@@ -117,6 +153,10 @@ export const updateFolder = async (req: AuthRequest, res: Response) => {
           .single();
         if (!parent || parent.owner_id !== userId) {
           return res.status(400).json({ message: "Target folder not found" });
+        }
+
+        if (await wouldCreateFolderCycle(folderId, parentId, userId)) {
+          return res.status(400).json({ message: "Folder cannot be moved into one of its children" });
         }
       }
 

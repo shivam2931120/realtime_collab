@@ -9,6 +9,7 @@ type UiState = {
   setNotifications: (notifications: AppNotification[], unreadCount: number) => void;
   markNotificationRead: (id: string) => void;
   markAllRead: () => void;
+  removeNotification: (id: string) => void;
 };
 
 export const useUiStore = create<UiState>((set) => ({
@@ -34,4 +35,12 @@ export const useUiStore = create<UiState>((set) => ({
       notifications: state.notifications.map((item) => ({ ...item, isRead: true })),
       unreadCount: 0,
     })),
+  removeNotification: (id) =>
+    set((state) => {
+      const removed = state.notifications.find((item) => item.id === id);
+      return {
+        notifications: state.notifications.filter((item) => item.id !== id),
+        unreadCount: Math.max(0, state.unreadCount - (removed && !removed.isRead ? 1 : 0)),
+      };
+    }),
 }));
