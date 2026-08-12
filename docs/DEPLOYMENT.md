@@ -18,7 +18,7 @@ Render settings in the Blueprint:
 
 - Root directory: `backend`
 - Runtime: Node
-- Build command: `npm ci && npm run build`
+- Build command: `npm ci --include=dev && npm run build && npm prune --omit=dev`
 - Start command: `npm run start`
 - Health check path: `/healthz`
 
@@ -38,7 +38,7 @@ Render environment variables:
 Manual Render settings, if you do not use the Blueprint:
 
 - Root Directory: `backend`
-- Build Command: `npm ci && npm run build`
+- Build Command: `npm ci --include=dev && npm run build && npm prune --omit=dev`
 - Start Command: `npm run start`
 - Health Check Path: `/healthz`
 
