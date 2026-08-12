@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { buildAuthUser, issueAuthToken } from "../utils/authToken";
 import { supabase } from "../config/supabase";
-import { isMissingTableError } from "../utils/dbErrors";
+import { isDatabaseUnavailableError, isMissingTableError } from "../utils/dbErrors";
 import { sendPasswordResetEmail } from "../utils/mailer";
 import {
   assertStrongPassword,
@@ -28,6 +28,11 @@ const getResetBaseUrl = () =>
 const authTablesMissingResponse = (res: Response) =>
   res.status(503).json({
     message: "Password auth tables are not initialized. Run the latest supabase_schema.sql migration.",
+  });
+
+const databaseUnavailableResponse = (res: Response) =>
+  res.status(503).json({
+    message: "Authentication is temporarily unavailable because the database cannot be reached.",
   });
 
 const sessionPayload = async (user: { id: string; email: string }) => {
@@ -98,6 +103,10 @@ export const register = async (req: Request, res: Response) => {
 
     return res.status(201).json(await sessionPayload(user));
   } catch (error: any) {
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
+
     if (isMissingTableError(error)) {
       return authTablesMissingResponse(res);
     }
@@ -127,6 +136,10 @@ export const login = async (req: Request, res: Response) => {
       return res.json(await sessionPayload(user));
     }
 
+    if (error && isDatabaseUnavailableError(error)) {
+      throw error;
+    }
+
     if (error || !userRow || !verifyPassword(password, userRow.password_hash)) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
@@ -134,6 +147,10 @@ export const login = async (req: Request, res: Response) => {
     const user = buildAuthUser(userRow.email);
     return res.json(await sessionPayload(user));
   } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
+
     if (isMissingTableError(error)) {
       return authTablesMissingResponse(res);
     }
@@ -152,6 +169,10 @@ export const refreshSession = async (req: Request, res: Response) => {
       expiresInSeconds: Math.max(60, Number(process.env.AUTH_TOKEN_TTL_SECONDS || 60 * 60 * 24 * 14)),
     });
   } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
+
     if (isMissingTableError(error)) {
       return authTablesMissingResponse(res);
     }
@@ -206,6 +227,10 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
     return res.json({ message: "If an account exists, password reset instructions have been sent." });
   } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
+
     if (isMissingTableError(error)) {
       return authTablesMissingResponse(res);
     }
@@ -243,6 +268,10 @@ export const confirmPasswordReset = async (req: Request, res: Response) => {
 
     return res.json({ success: true });
   } catch (error: any) {
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
+
     if (isMissingTableError(error)) {
       return authTablesMissingResponse(res);
     }

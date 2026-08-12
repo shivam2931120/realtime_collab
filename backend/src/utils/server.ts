@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import docRoutes from "../routes/docRoutes";
 import notificationRoutes from "../routes/notificationRoutes";
 import authRoutes from "../routes/authRoutes";
+import { checkDatabaseConnection } from "../config/supabase";
 
 const normalizeOrigin = (value: string) => value.trim().replace(/\/+$/, "");
 const startedAt = Date.now();
@@ -125,8 +126,11 @@ export const createServer = () => {
       );
   });
 
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok" });
+  app.get("/api/health", async (_req, res) => {
+    const database = await checkDatabaseConnection();
+    const status = database.connected ? "ok" : "degraded";
+
+    res.status(database.connected ? 200 : 503).json({ status, database });
   });
 
   app.use("/api/auth", authRoutes);

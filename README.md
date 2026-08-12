@@ -107,6 +107,7 @@ Frontend runs on `http://localhost:5173`.
 - `POST /api/auth/password-reset/request`
 - `POST /api/auth/password-reset/confirm`
 - `GET /api/auth/me`
+- `GET /api/health` (includes a live Supabase connectivity check)
 - `POST /api/docs/folders`
 - `GET /api/docs/folders`
 - `DELETE /api/docs/folders/:folderId`

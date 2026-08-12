@@ -8,7 +8,11 @@ echo "Checking platform health at ${BASE_URL}/healthz"
 curl -fsS "${BASE_URL}/healthz" >/dev/null || { echo "Platform healthcheck failed"; exit 2; }
 
 echo "Checking API health at ${BASE_URL}/api/health"
-curl -fsS "${BASE_URL}/api/health" >/dev/null || { echo "API healthcheck failed"; exit 2; }
+HEALTH_JSON=$(curl -fsS "${BASE_URL}/api/health") || { echo "API/database healthcheck failed"; exit 2; }
+node -e '
+const payload = JSON.parse(process.argv[1]);
+if (payload.status !== "ok" || payload.database?.connected !== true) process.exit(1);
+' "$HEALTH_JSON" || { echo "Database is not connected"; exit 2; }
 
 echo "Checking auth session endpoint at ${BASE_URL}/api/auth/session"
 curl -fsS -X POST "${BASE_URL}/api/auth/session" \

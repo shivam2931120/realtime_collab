@@ -61,3 +61,15 @@ test("EmailJS readiness reports missing and configured provider state", async ()
   if (previousEnv.privateKey === undefined) delete process.env.EMAILJS_PRIVATE_KEY;
   else process.env.EMAILJS_PRIVATE_KEY = previousEnv.privateKey;
 });
+
+test("database errors distinguish connectivity failures from query failures", async () => {
+  const { getDatabaseConnectionErrorCode, isDatabaseUnavailableError } = await import("../src/utils/dbErrors");
+
+  const nestedDnsError = Object.assign(new TypeError("fetch failed"), {
+    cause: Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }),
+  });
+
+  assert.equal(getDatabaseConnectionErrorCode(nestedDnsError), "ENOTFOUND");
+  assert.equal(isDatabaseUnavailableError({ message: "TypeError: fetch failed" }), true);
+  assert.equal(isDatabaseUnavailableError({ code: "PGRST116", message: "No rows returned" }), false);
+});
