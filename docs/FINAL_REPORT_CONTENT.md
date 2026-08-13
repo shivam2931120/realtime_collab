@@ -553,7 +553,6 @@ The latest schema includes password-auth tables and soft-delete columns. To keep
 - Add Kubernetes manifests and HPA for container orchestration.
 - Add Prometheus/Grafana dashboards for production monitoring.
 - Add real screenshot assets and demo GIFs inside the README.
-- Add document-level public link sharing with expiring invite tokens.
 - Add threaded replies under comments.
 
 ---

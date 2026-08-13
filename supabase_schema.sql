@@ -155,6 +155,17 @@ create table if not exists public.document_events (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Revocable, expiring read-only public links. Store only token hashes.
+create table if not exists public.document_public_links (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references public.documents(id) on delete cascade not null,
+  token_hash text unique not null,
+  created_by text not null,
+  expires_at timestamp with time zone not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  revoked_at timestamp with time zone
+);
+
 -- Helpful indexes for the backend and Table Editor browsing.
 create index if not exists idx_auth_refresh_tokens_user on public.auth_refresh_tokens(user_id);
 create index if not exists idx_auth_password_reset_tokens_user on public.auth_password_reset_tokens(user_id);
@@ -169,6 +180,8 @@ create index if not exists idx_document_versions_document_created on public.docu
 create index if not exists idx_document_tags_tag on public.document_tags(tag);
 create index if not exists idx_document_events_document_created on public.document_events(document_id, created_at desc);
 create index if not exists idx_document_events_actor_created on public.document_events(actor_id, created_at desc);
+create index if not exists idx_document_public_links_document on public.document_public_links(document_id, created_at desc);
+create index if not exists idx_document_public_links_active on public.document_public_links(expires_at) where revoked_at is null;
 
 -- Decode the app's deterministic usr_<base64url(email)> IDs for admin views.
 create or replace function public.app_email_from_user_id(value text)

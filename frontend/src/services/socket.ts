@@ -1,5 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import { SOCKET_URL } from "./config";
+import { reportSocketBackendError } from "./backendErrors";
 
 let socket: Socket | null = null;
 
@@ -10,6 +11,7 @@ export const connectSocket = (token: string) => {
         token,
       },
     });
+    socket.on("connect_error", (error) => reportSocketBackendError(error?.message));
     return socket;
   }
 

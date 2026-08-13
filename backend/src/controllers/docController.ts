@@ -1,4 +1,5 @@
-import { Response } from "express";
+import { createHash, randomBytes } from "node:crypto";
+import { Request, Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { supabase } from "../config/supabase";
 import { trackDocumentEvent } from "../utils/analytics";
@@ -33,6 +34,14 @@ type CollaboratorRole = "editor" | "commenter" | "viewer";
 type DocumentRole = "owner" | CollaboratorRole;
 type InviteStatus = "pending" | "accepted" | "cancelled";
 type BulkAction = "move" | "tag" | "delete" | "share";
+
+const hashPublicLinkToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+const publicLinkExpiryHours = (value: unknown) => {
+  const hours = Number(value);
+  if (!Number.isFinite(hours)) return 24;
+  return Math.min(24 * 30, Math.max(1, Math.round(hours)));
+};
 
 const normalizeRole = (role: unknown): CollaboratorRole => {
   if (role === "viewer") return "viewer";
@@ -128,7 +137,7 @@ const enrichWithUserEmails = async (documents: any[]) => {
   });
 };
 
-const parseShareTargets = async (input: unknown, ownerId: string) => {
+const parseShareTargets = (input: unknown, ownerId: string) => {
   if (!Array.isArray(input) || input.length === 0) {
     return [] as ShareTarget[];
   }
@@ -414,7 +423,7 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
     const title = String(req.body.title || "").trim();
     if (!title) return res.status(400).json({ message: "Document title required hai" });
 
-    const shareTargets = await parseShareTargets(req.body.collaborators, userId);
+    const shareTargets = parseShareTargets(req.body.collaborators, userId);
     const collaborators = shareTargets.filter((item) => item.userId) as Array<
       ShareTarget & { userId: string }
     >;
@@ -945,6 +954,168 @@ export const getDocumentById = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const listPublicDocumentLinks = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { data: document } = await supabase
+      .from("documents")
+      .select("id, owner_id, deleted_at")
+      .eq("id", req.params.id)
+      .single();
+    if (!document || document.deleted_at) return res.status(404).json({ message: "Document nahi mila" });
+    if (document.owner_id !== auth.userId) return res.status(403).json({ message: "Only the owner can manage public links" });
+
+    const { data: links, error } = await supabase
+      .from("document_public_links")
+      .select("id, expires_at, created_at, revoked_at")
+      .eq("document_id", req.params.id)
+      .is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    return res.json({ links: links || [] });
+  } catch (error) {
+    console.error("List public links failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({ message: "Public links table is missing. Run the latest supabase_schema.sql." });
+    }
+    return res.status(500).json({ message: "Public links load failed" });
+  }
+};
+
+export const createPublicDocumentLink = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const documentId = req.params.id;
+    const { data: document } = await supabase
+      .from("documents")
+      .select("id, title, owner_id, deleted_at")
+      .eq("id", documentId)
+      .single();
+    if (!document || document.deleted_at) return res.status(404).json({ message: "Document nahi mila" });
+    if (document.owner_id !== auth.userId) return res.status(403).json({ message: "Only the owner can create public links" });
+
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + publicLinkExpiryHours(req.body?.expiresInHours) * 60 * 60 * 1000).toISOString();
+    const { data: link, error } = await supabase
+      .from("document_public_links")
+      .insert({
+        document_id: documentId,
+        token_hash: hashPublicLinkToken(token),
+        created_by: auth.userId,
+        expires_at: expiresAt,
+      })
+      .select("id, expires_at, created_at")
+      .single();
+    if (error || !link) throw error || new Error("Public link create failed");
+
+    await trackDocumentEvent({
+      documentId,
+      actorId: auth.userId,
+      eventType: "document_public_link_created",
+      metadata: { expiresAt },
+    });
+
+    return res.status(201).json({
+      link: {
+        ...link,
+        url: `${String(process.env.CLIENT_URL || "http://localhost:5173").replace(/\/+$/, "")}/public/${token}`,
+      },
+    });
+  } catch (error) {
+    console.error("Create public link failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({ message: "Public links table is missing. Run the latest supabase_schema.sql." });
+    }
+    return res.status(500).json({ message: "Public link create failed" });
+  }
+};
+
+export const revokePublicDocumentLink = async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = req.auth;
+    if (!auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { data: document } = await supabase
+      .from("documents")
+      .select("id, owner_id")
+      .eq("id", req.params.id)
+      .single();
+    if (!document) return res.status(404).json({ message: "Document nahi mila" });
+    if (document.owner_id !== auth.userId) return res.status(403).json({ message: "Only the owner can revoke public links" });
+
+    const { error } = await supabase
+      .from("document_public_links")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("id", req.params.linkId)
+      .eq("document_id", req.params.id)
+      .is("revoked_at", null);
+    if (error) throw error;
+
+    await trackDocumentEvent({
+      documentId: req.params.id,
+      actorId: auth.userId,
+      eventType: "document_public_link_revoked",
+      metadata: { linkId: req.params.linkId },
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Revoke public link failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({ message: "Public links table is missing. Run the latest supabase_schema.sql." });
+    }
+    return res.status(500).json({ message: "Public link revoke failed" });
+  }
+};
+
+export const getPublicDocument = async (req: Request, res: Response) => {
+  try {
+    const token = String(req.params.token || "");
+    if (!token || token.length < 32) return res.status(404).json({ message: "Public link not found or expired" });
+
+    const { data: link, error: linkError } = await supabase
+      .from("document_public_links")
+      .select("id, document_id, expires_at, revoked_at")
+      .eq("token_hash", hashPublicLinkToken(token))
+      .maybeSingle();
+    if (linkError) throw linkError;
+    if (!link || link.revoked_at || new Date(link.expires_at).getTime() <= Date.now()) {
+      return res.status(404).json({ message: "Public link not found or expired" });
+    }
+
+    const { data: document, error: documentError } = await supabase
+      .from("documents")
+      .select("id, title, content, owner_id, updated_at, deleted_at")
+      .eq("id", link.document_id)
+      .single();
+    if (documentError) throw documentError;
+    if (!document || document.deleted_at) return res.status(404).json({ message: "Document not found" });
+
+    return res.json({
+      document: {
+        id: document.id,
+        title: document.title,
+        content: document.content || "<p></p>",
+        ownerEmail: emailFromUserId(document.owner_id),
+        updatedAt: document.updated_at,
+        expiresAt: link.expires_at,
+      },
+    });
+  } catch (error) {
+    console.error("Fetch public document failed", error);
+    if (isMissingTableError(error)) {
+      return res.status(503).json({ message: "Public links table is missing. Run the latest supabase_schema.sql." });
+    }
+    return res.status(500).json({ message: "Public document load failed" });
+  }
+};
+
 export const bulkUpdateDocuments = async (req: AuthRequest, res: Response) => {
   try {
     const auth = req.auth;
@@ -1021,7 +1192,7 @@ export const bulkUpdateDocuments = async (req: AuthRequest, res: Response) => {
 
     if (action === "share") {
       for (const doc of permittedDocs) {
-        const parsedShareTargets = await parseShareTargets(req.body.collaborators, userId);
+        const parsedShareTargets = parseShareTargets(req.body.collaborators, userId);
         const parsedCollaborators = parsedShareTargets.filter((item) => item.userId) as Array<
           ShareTarget & { userId: string }
         >;
@@ -1294,7 +1465,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
     let nextCollaborators = doc.document_collaborators || [];
 
     if (wantsShareUpdate) {
-      const parsedShareTargets = await parseShareTargets(req.body.collaborators, userId);
+      const parsedShareTargets = parseShareTargets(req.body.collaborators, userId);
       const notifyEmails = parseNotifyEmails(req.body.notifyEmails, userId);
       const parsedCollaborators = parsedShareTargets.filter((item) => item.userId) as Array<
         ShareTarget & { userId: string }

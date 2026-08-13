@@ -22,6 +22,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { connectSocket, disconnectSocket } from "../services/socket";
+import { reportSocketBackendError } from "../services/backendErrors";
+import EditorCommentCard from "../components/EditorCommentCard";
 import { DocItem, useDocStore } from "../store/docStore";
 import { DocComment } from "../types";
 import { getAuthToken } from "../services/auth";
@@ -100,6 +102,12 @@ type ActivityItem = {
   };
   metadata?: Record<string, unknown>;
   createdAt: string;
+};
+type PublicLink = {
+  id: string;
+  url?: string;
+  expires_at: string;
+  created_at: string;
 };
 type LocalDraft = {
   content: string;
@@ -327,6 +335,10 @@ const EditorPage = () => {
   const [savingShare, setSavingShare] = useState(false);
   const [shareNotice, setShareNotice] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
+  const [publicLinks, setPublicLinks] = useState<PublicLink[]>([]);
+  const [publicLinkExpiry, setPublicLinkExpiry] = useState("24");
+  const [publicLinkBusy, setPublicLinkBusy] = useState(false);
+  const [publicLinkUrl, setPublicLinkUrl] = useState("");
   const [transferOwnerEmail, setTransferOwnerEmail] = useState("");
   const [transferringOwner, setTransferringOwner] = useState(false);
   const [removingCollaboratorEmail, setRemovingCollaboratorEmail] = useState("");
@@ -694,7 +706,10 @@ const EditorPage = () => {
           return next;
         });
       };
-      const handleDocError = (payload: { message: string }) => setError(payload.message);
+      const handleDocError = (payload: { message: string }) => {
+        setError(payload.message);
+        reportSocketBackendError(payload.message);
+      };
       const handleEditorUpdate = () => {
         setEditorRevision((current) => current + 1);
         const latestDoc = docRef.current;
@@ -1093,6 +1108,41 @@ const EditorPage = () => {
       .split(/[\n,;]+/)
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean);
+
+  const loadPublicLinks = async () => {
+    if (!id || activeDoc?.role !== "owner") return;
+    const response = await api.get<{ links: PublicLink[] }>(`/docs/${id}/public-links`);
+    setPublicLinks(response.data.links || []);
+  };
+
+  const createPublicLink = async () => {
+    if (!id || activeDoc?.role !== "owner") return;
+    setPublicLinkBusy(true);
+    setShareNotice("");
+    try {
+      const response = await api.post<{ link: PublicLink }>(`/docs/${id}/public-links`, {
+        expiresInHours: Number(publicLinkExpiry),
+      });
+      setPublicLinkUrl(response.data.link.url || "");
+      setPublicLinks((current) => [response.data.link, ...current]);
+      setShareNotice("Public read-only link created.");
+    } finally {
+      setPublicLinkBusy(false);
+    }
+  };
+
+  const revokePublicLink = async (linkId: string) => {
+    if (!id) return;
+    setPublicLinkBusy(true);
+    try {
+      await api.delete(`/docs/${id}/public-links/${linkId}`);
+      setPublicLinks((current) => current.filter((link) => link.id !== linkId));
+      setPublicLinkUrl("");
+      setShareNotice("Public link revoked.");
+    } finally {
+      setPublicLinkBusy(false);
+    }
+  };
 
   const persistCollaborators = async (
     collaborators: Array<{ email: string; role: ShareRole }>,
@@ -1642,7 +1692,7 @@ const EditorPage = () => {
 
   const fileMenuItems = [
     { label: "Rename document", action: handleRename },
-    { label: "Share document", action: () => setShareModalOpen(true) },
+    { label: "Share document", action: () => { setShareModalOpen(true); loadPublicLinks().catch(console.error); } },
     ...(canExportDocument
       ? [
           { label: "Import file", action: importFile },
@@ -2075,7 +2125,7 @@ const EditorPage = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setShareModalOpen(true)}
+                onClick={() => { setShareModalOpen(true); loadPublicLinks().catch(console.error); }}
                 className="emerald-primary-button min-w-0 px-2 text-[11px] sm:flex-none sm:px-4 sm:text-sm"
                 aria-label="Share"
                 title="Share"
@@ -2599,104 +2649,26 @@ const EditorPage = () => {
 
             {filteredComments.length ? (
               filteredComments.map((comment) => (
-                <div
+                <EditorCommentCard
                   key={comment.id}
-                  className={`space-y-3 rounded-lg border-l-2 bg-surface-container p-4 shadow-sm ${
-                    comment.resolved ? "border-white/10 opacity-75" : "border-primary"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-highest text-[10px] uppercase text-white">
-                      {comment.author.email.slice(0, 2)}
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-bold text-white">{comment.author.email}</div>
-                      <div className="text-[9px] text-[#a3a3a3]">{new Date(comment.createdAt).toLocaleString()}</div>
-                    </div>
-                  </div>
-                  {editingCommentId === comment.id ? (
-                    <div className="space-y-2">
-                      <textarea
-                        className="emerald-input min-h-[82px] resize-none text-xs"
-                        value={editingCommentBody}
-                        onChange={(event) => setEditingCommentBody(event.target.value)}
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => saveCommentEdit(comment).catch(console.error)}
-                          className="emerald-primary-button px-3 py-1 text-[10px]"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingCommentId("");
-                            setEditingCommentBody("");
-                          }}
-                          className="emerald-muted-button px-3 py-1 text-[10px]"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
-                  )}
-                  {comment.position?.text ? (
-                    <button
-                      type="button"
-                      onClick={() => focusCommentPosition(comment)}
-                      className="w-full rounded border border-white/10 bg-surface-container-high px-2 py-1 text-left text-[11px] text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
-                    >
-                      Linked: "{comment.position.text}"
-                    </button>
-                  ) : null}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => replyToComment(comment)}
-                      className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">reply</span>
-                      Reply
-                    </button>
-                    {(comment.author.email.toLowerCase() === (userEmail || "").toLowerCase() || activeDoc?.role === "owner") ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => startCommentEdit(comment)}
-                          className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">edit</span>
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteComment(comment).catch(console.error)}
-                          disabled={deletingCommentId === comment.id}
-                          className="flex items-center gap-1 rounded border border-error/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-error transition hover:bg-error-container/20 disabled:opacity-50"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">
-                            {deletingCommentId === comment.id ? "hourglass_empty" : "delete"}
-                          </span>
-                          Delete
-                        </button>
-                      </>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => toggleCommentResolved(comment).catch(console.error)}
-                      className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">
-                        {comment.resolved ? "undo" : "task_alt"}
-                      </span>
-                      {comment.resolved ? "Reopen" : "Resolve"}
-                    </button>
-                  </div>
-                </div>
+                  comment={comment}
+                  currentUserEmail={userEmail || ""}
+                  isOwner={activeDoc?.role === "owner"}
+                  editing={editingCommentId === comment.id}
+                  editingBody={editingCommentBody}
+                  deleting={deletingCommentId === comment.id}
+                  onEditingBodyChange={setEditingCommentBody}
+                  onSave={() => saveCommentEdit(comment).catch(console.error)}
+                  onCancelEdit={() => {
+                    setEditingCommentId("");
+                    setEditingCommentBody("");
+                  }}
+                  onFocus={() => focusCommentPosition(comment)}
+                  onReply={() => replyToComment(comment)}
+                  onStartEdit={() => startCommentEdit(comment)}
+                  onDelete={() => deleteComment(comment).catch(console.error)}
+                  onToggleResolved={() => toggleCommentResolved(comment).catch(console.error)}
+                />
               ))
             ) : (
               <div className="rounded-lg bg-surface-container/50 p-4 text-sm text-on-surface-variant">
@@ -2899,107 +2871,30 @@ const EditorPage = () => {
               <div className="space-y-3">
                 {filteredComments.length ? (
                   filteredComments.map((comment) => (
-                    <div
+                    <EditorCommentCard
                       key={`mobile-${comment.id}`}
-                      className={`space-y-3 rounded-lg border-l-2 bg-surface-container p-4 shadow-sm ${
-                        comment.resolved ? "border-white/10 opacity-75" : "border-primary"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-highest text-[10px] uppercase text-white">
-                          {comment.author.email.slice(0, 2)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-[11px] font-bold text-white">{comment.author.email}</div>
-                          <div className="text-[9px] text-[#a3a3a3]">{new Date(comment.createdAt).toLocaleString()}</div>
-                        </div>
-                      </div>
-                      {editingCommentId === comment.id ? (
-                        <div className="space-y-2">
-                          <textarea
-                            className="emerald-input min-h-[90px] resize-none text-xs"
-                            value={editingCommentBody}
-                            onChange={(event) => setEditingCommentBody(event.target.value)}
-                          />
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => saveCommentEdit(comment).catch(console.error)}
-                              className="emerald-primary-button justify-center px-3 py-2 text-[10px]"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingCommentId("");
-                                setEditingCommentBody("");
-                              }}
-                              className="emerald-muted-button justify-center px-3 py-2 text-[10px]"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs leading-relaxed text-[#bbcabf]">{comment.body}</p>
-                      )}
-                      {comment.position?.text ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            focusCommentPosition(comment);
-                            setMobilePanel(null);
-                          }}
-                          className="w-full rounded border border-white/10 bg-surface-container-high px-2 py-2 text-left text-[11px] text-on-surface-variant transition active:border-primary/40 active:text-primary"
-                        >
-                          Linked: "{comment.position.text}"
-                        </button>
-                      ) : null}
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => replyToComment(comment)}
-                          className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">reply</span>
-                          Reply
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleCommentResolved(comment).catch(console.error)}
-                          className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">
-                            {comment.resolved ? "undo" : "task_alt"}
-                          </span>
-                          {comment.resolved ? "Reopen" : "Resolve"}
-                        </button>
-                        {(comment.author.email.toLowerCase() === (userEmail || "").toLowerCase() || activeDoc?.role === "owner") ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => startCommentEdit(comment)}
-                              className="flex w-full items-center justify-center gap-1 rounded border border-white/10 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition active:border-primary/40 active:text-primary"
-                            >
-                              <span className="material-symbols-outlined text-[14px]">edit</span>
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteComment(comment).catch(console.error)}
-                              disabled={deletingCommentId === comment.id}
-                              className="flex w-full items-center justify-center gap-1 rounded border border-error/20 px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-error transition active:bg-error-container/20 disabled:opacity-50"
-                            >
-                              <span className="material-symbols-outlined text-[14px]">
-                                {deletingCommentId === comment.id ? "hourglass_empty" : "delete"}
-                              </span>
-                              Delete
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
+                      comment={comment}
+                      currentUserEmail={userEmail || ""}
+                      isOwner={activeDoc?.role === "owner"}
+                      editing={editingCommentId === comment.id}
+                      editingBody={editingCommentBody}
+                      deleting={deletingCommentId === comment.id}
+                      compact
+                      onEditingBodyChange={setEditingCommentBody}
+                      onSave={() => saveCommentEdit(comment).catch(console.error)}
+                      onCancelEdit={() => {
+                        setEditingCommentId("");
+                        setEditingCommentBody("");
+                      }}
+                      onFocus={() => {
+                        focusCommentPosition(comment);
+                        setMobilePanel(null);
+                      }}
+                      onReply={() => replyToComment(comment)}
+                      onStartEdit={() => startCommentEdit(comment)}
+                      onDelete={() => deleteComment(comment).catch(console.error)}
+                      onToggleResolved={() => toggleCommentResolved(comment).catch(console.error)}
+                    />
                   ))
                 ) : (
                   <div className="rounded-lg bg-surface-container/50 p-4 text-sm text-on-surface-variant">
@@ -3250,6 +3145,56 @@ const EditorPage = () => {
                   </div>
                 </div>
               </div>
+              {activeDoc?.role === "owner" ? (
+                <div className="rounded border border-primary/20 bg-primary/5 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-primary">Public read-only link</p>
+                      <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                        Anyone with this link can read the document until it expires. Editing and comments stay disabled.
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <select
+                        value={publicLinkExpiry}
+                        onChange={(event) => setPublicLinkExpiry(event.target.value)}
+                        className="h-9 rounded border border-white/10 bg-surface px-2 text-xs text-white"
+                        aria-label="Public link expiration"
+                      >
+                        <option value="1">1 hour</option>
+                        <option value="24">24 hours</option>
+                        <option value="168">7 days</option>
+                        <option value="720">30 days</option>
+                      </select>
+                      <button type="button" onClick={() => createPublicLink().catch(console.error)} disabled={publicLinkBusy} className="emerald-muted-button justify-center">
+                        <span className="material-symbols-outlined text-sm">link</span>
+                        Create
+                      </button>
+                    </div>
+                  </div>
+                  {publicLinkUrl ? (
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <input readOnly value={publicLinkUrl} className="emerald-input min-w-0 flex-1 text-xs" aria-label="Public document link" />
+                      <button type="button" onClick={() => navigator.clipboard.writeText(publicLinkUrl).then(() => setShareNotice("Public link copied."))} className="emerald-muted-button justify-center">
+                        <span className="material-symbols-outlined text-sm">content_copy</span>
+                        Copy
+                      </button>
+                    </div>
+                  ) : null}
+                  {publicLinks.length ? (
+                    <div className="mt-3 space-y-2">
+                      {publicLinks.map((link) => (
+                        <div key={link.id} className="flex flex-col gap-2 rounded bg-surface px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-on-surface-variant">Expires {new Date(link.expires_at).toLocaleString()}</span>
+                          <button type="button" onClick={() => revokePublicLink(link.id).catch(console.error)} disabled={publicLinkBusy} className="self-start text-error hover:underline sm:self-auto">
+                            Revoke
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="share-emails">
                   Collaborator Emails

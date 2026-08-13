@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, Link, useLocation, useSearchParams } from "rea
 import api from "./services/api";
 import { useAuthStore } from "./store/authStore";
 import { useDocStore } from "./store/docStore";
+import BackendErrorModal from "./components/BackendErrorModal";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const DraftsPage = lazy(() => import("./pages/Drafts"));
@@ -14,6 +15,7 @@ const EditorPage = lazy(() => import("./pages/Editor"));
 const DiscoverPage = lazy(() => import("./pages/Discover"));
 const LibraryPage = lazy(() => import("./pages/Library"));
 const AnalyticsPage = lazy(() => import("./pages/Analytics"));
+const PublicDocumentPage = lazy(() => import("./pages/PublicDocument"));
 
 type SessionResponse = {
   token: string;
@@ -309,6 +311,7 @@ const App = () => {
         <Route path="/login" element={<AuthScreen mode="login" />} />
         <Route path="/register" element={<AuthScreen mode="register" />} />
         <Route path="/reset-password" element={<ResetPasswordScreen />} />
+        <Route path="/public/:token" element={<PublicDocumentPage />} />
         <Route
           path="/dashboard"
           element={
@@ -390,6 +393,7 @@ const App = () => {
           }
         />
       </Routes>
+      <BackendErrorModal />
     </Suspense>
   );
 };

@@ -12,7 +12,9 @@ export type DocumentEventType =
   | "document_restored"
   | "document_ownership_transferred"
   | "document_bulk_action"
-  | "document_invite_cancelled";
+  | "document_invite_cancelled"
+  | "document_public_link_created"
+  | "document_public_link_revoked";
 
 export const trackDocumentEvent = async (payload: {
   documentId: string;

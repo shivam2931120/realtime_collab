@@ -5,8 +5,15 @@ type UiState = {
   searchTerm: string;
   notifications: AppNotification[];
   unreadCount: number;
+  backendError: {
+    status: number | null;
+    message: string;
+    path?: string;
+  } | null;
   setSearchTerm: (value: string) => void;
   setNotifications: (notifications: AppNotification[], unreadCount: number) => void;
+  setBackendError: (error: NonNullable<UiState["backendError"]>) => void;
+  clearBackendError: () => void;
   markNotificationRead: (id: string) => void;
   markAllRead: () => void;
   removeNotification: (id: string) => void;
@@ -16,8 +23,11 @@ export const useUiStore = create<UiState>((set) => ({
   searchTerm: "",
   notifications: [],
   unreadCount: 0,
+  backendError: null,
   setSearchTerm: (value) => set({ searchTerm: value }),
   setNotifications: (notifications, unreadCount) => set({ notifications, unreadCount }),
+  setBackendError: (backendError) => set({ backendError }),
+  clearBackendError: () => set({ backendError: null }),
   markNotificationRead: (id) =>
     set((state) => ({
       notifications: state.notifications.map((item) =>

@@ -16,6 +16,10 @@ import {
   transferDocumentOwnership,
   updateDocument,
   getAccessOverview,
+  createPublicDocumentLink,
+  getPublicDocument,
+  listPublicDocumentLinks,
+  revokePublicDocumentLink,
 } from "../controllers/docController";
 import { createComment, deleteComment, getComments, updateCommentResolution } from "../controllers/commentController";
 import { createFolder, getFolders, deleteFolder, updateFolder } from "../controllers/folderController";
@@ -55,6 +59,7 @@ router.get("/activity/overview", protect, getWorkspaceActivityOverview);
 router.get("/invites", protect, getInviteManagement);
 router.get("/trash", protect, getTrashDocuments);
 router.post("/bulk", protect, bulkUpdateDocuments);
+router.get("/public/:token", getPublicDocument);
 
 router.post("/", protect, createDocument);
 router.get("/", protect, getDocuments);
@@ -70,6 +75,9 @@ router.delete("/:id/permanent", protect, permanentlyDeleteDocument);
 router.post("/:id/transfer-owner", protect, transferDocumentOwnership);
 router.post("/:id/invites/:userId/resend", protect, resendInvite);
 router.delete("/:id/invites/:userId", protect, cancelInvite);
+router.get("/:id/public-links", protect, listPublicDocumentLinks);
+router.post("/:id/public-links", protect, createPublicDocumentLink);
+router.delete("/:id/public-links/:linkId", protect, revokePublicDocumentLink);
 
 router.get("/:id/comments", protect, getComments);
 router.post("/:id/comments", protect, createComment);
