@@ -283,7 +283,7 @@ const deleteDocumentDependencies = async (documentId: string) => {
   }
 };
 
-const queueShareEmails = ({
+const queueShareEmails = async ({
   documentId,
   documentTitle,
   actorEmail,
@@ -293,7 +293,7 @@ const queueShareEmails = ({
   documentTitle: string;
   actorEmail: string;
   accessUpdates: ShareAccessUpdate[];
-}) => {
+}): Promise<void> => {
   if (!accessUpdates.length) return;
 
   const documentUrl = `${getClientUrl()}/editor/${documentId}`;
@@ -310,46 +310,44 @@ const queueShareEmails = ({
 
   if (!targets.length) return;
 
-  runInBackground("Share email delivery failed", async () => {
-    const deliveryTasks = targets.map((target) =>
-      sendDocumentSharedEmail({
-        to: target.email,
-        actorEmail,
-        documentTitle,
-        documentUrl,
-        role: target.role,
+  const deliveryTasks = targets.map((target) =>
+    sendDocumentSharedEmail({
+      to: target.email,
+      actorEmail,
+      documentTitle,
+      documentUrl,
+      role: target.role,
+    })
+      .then((result) => {
+        void updateInviteMailStatus(documentId, target.user, getMailStatus(result));
+        console.info(`Share email to ${maskEmail(target.email)} ${describeMailResult(result)}`);
+      })
+      .catch((error) => {
+        void updateInviteMailStatus(documentId, target.user, "failed");
+        console.error(`Failed to send share email to ${maskEmail(target.email)}`, error);
+      }),
+  );
+
+  if (isValidEmail(actorEmail)) {
+    const sharedListText = targets.map((target) => `- ${target.email} (${target.role})`).join("\n");
+    const sharedListHtml = targets
+      .map((target) => `<li>${escapeHtml(maskEmail(target.email))} (${target.role})</li>`)
+      .join("");
+    deliveryTasks.push(
+      sendMail({
+        to: actorEmail,
+        subject: `Share confirmed: ${documentTitle}`,
+        text: `Your share update for "${documentTitle}" was submitted.\n\nAccess granted or updated:\n${sharedListText}\n\nOpen: ${documentUrl}`,
+        html: `<p>Your share update for <strong>${escapeHtml(documentTitle)}</strong> was submitted.</p><p>Access granted or updated:</p><ul>${sharedListHtml}</ul><p><a href="${escapeHtml(documentUrl)}">Open document</a></p>`,
       })
         .then((result) => {
-          void updateInviteMailStatus(documentId, target.user, getMailStatus(result));
-          console.info(`Share email to ${maskEmail(target.email)} ${describeMailResult(result)}`);
+          console.info(`Share confirmation to ${maskEmail(actorEmail)} ${describeMailResult(result)}`);
         })
-        .catch((error) => {
-          void updateInviteMailStatus(documentId, target.user, "failed");
-          console.error(`Failed to send share email to ${maskEmail(target.email)}`, error);
-        }),
+        .catch((error) => console.error(`Failed to send share confirmation to ${maskEmail(actorEmail)}`, error)),
     );
+  }
 
-    if (isValidEmail(actorEmail)) {
-      const sharedListText = targets.map((target) => `- ${target.email} (${target.role})`).join("\n");
-      const sharedListHtml = targets
-        .map((target) => `<li>${escapeHtml(maskEmail(target.email))} (${target.role})</li>`)
-        .join("");
-      deliveryTasks.push(
-        sendMail({
-          to: actorEmail,
-          subject: `Share confirmed: ${documentTitle}`,
-          text: `Your share update for "${documentTitle}" was submitted.\n\nAccess granted or updated:\n${sharedListText}\n\nOpen: ${documentUrl}`,
-          html: `<p>Your share update for <strong>${escapeHtml(documentTitle)}</strong> was submitted.</p><p>Access granted or updated:</p><ul>${sharedListHtml}</ul><p><a href="${escapeHtml(documentUrl)}">Open document</a></p>`,
-        })
-          .then((result) => {
-            console.info(`Share confirmation to ${maskEmail(actorEmail)} ${describeMailResult(result)}`);
-          })
-          .catch((error) => console.error(`Failed to send share confirmation to ${maskEmail(actorEmail)}`, error)),
-      );
-    }
-
-    await Promise.all(deliveryTasks);
-  });
+  await Promise.all(deliveryTasks);
 };
 
 const createShareNotifications = async ({
@@ -402,7 +400,7 @@ const createShareNotifications = async ({
     console.error("Share notification insert failed", error);
   }
 
-  queueShareEmails({
+  await queueShareEmails({
     documentId,
     documentTitle,
     actorEmail,
@@ -411,7 +409,7 @@ const createShareNotifications = async ({
 };
 
 const queueShareNotifications = (payload: Parameters<typeof createShareNotifications>[0]) => {
-  runInBackground("Share notification/email task failed", () => createShareNotifications(payload));
+  return createShareNotifications(payload);
 };
 
 export const createDocument = async (req: AuthRequest, res: Response) => {
@@ -464,7 +462,7 @@ export const createDocument = async (req: AuthRequest, res: Response) => {
 
     const actorEmail = auth.email;
 
-    queueShareNotifications({
+    await queueShareNotifications({
       documentId: docData.id,
       documentTitle: docData.title,
       actorId: userId,
@@ -1216,7 +1214,7 @@ export const bulkUpdateDocuments = async (req: AuthRequest, res: Response) => {
           .upsert(collabsToUpsert, { onConflict: "document_id,user_id" });
         if (error) throw error;
 
-        queueShareNotifications({
+        await queueShareNotifications({
           documentId: doc.id,
           documentTitle: doc.title,
           actorId: userId,
@@ -1296,7 +1294,7 @@ export const resendInvite = async (req: AuthRequest, res: Response) => {
     }
 
     await updateInviteMailStatus(documentId, userId, "queued");
-    queueShareNotifications({
+    await queueShareNotifications({
       documentId,
       documentTitle: doc.title,
       actorId: auth.userId,
@@ -1540,7 +1538,7 @@ export const updateDocument = async (req: AuthRequest, res: Response) => {
 
       const actorEmail = auth.email;
 
-      queueShareNotifications({
+      await queueShareNotifications({
         documentId,
         documentTitle: updates.title || doc.title,
         actorId: userId,
