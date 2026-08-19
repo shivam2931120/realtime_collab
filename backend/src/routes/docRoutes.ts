@@ -37,6 +37,7 @@ import {
   updateDocumentTags,
 } from "../controllers/discoveryController";
 import { protect } from "../middleware/authMiddleware";
+import { writingAssistant } from "../controllers/aiController";
 
 const router = express.Router();
 
@@ -67,6 +68,7 @@ router.get("/:id/export", protect, exportDocument);
 router.get("/:id/tags", protect, getDocumentTags);
 router.put("/:id/tags", protect, updateDocumentTags);
 router.get("/:id/activity", protect, getDocumentActivity);
+router.post("/:id/ai/write", protect, writingAssistant);
 router.get("/:id", protect, getDocumentById);
 router.put("/:id", protect, updateDocument);
 router.delete("/:id", protect, deleteDocument);

@@ -130,6 +130,13 @@ create table if not exists public.document_versions (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Compact Yjs CRDT state. HTML remains in documents.content for exports and legacy clients.
+create table if not exists public.document_collaboration_states (
+  document_id uuid primary key references public.documents(id) on delete cascade,
+  state_base64 text not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 create table if not exists public.document_tags (
   document_id uuid references public.documents(id) on delete cascade not null,
   tag text not null,
@@ -180,6 +187,7 @@ create index if not exists idx_comments_document_created on public.comments(docu
 create index if not exists idx_comments_parent on public.comments(parent_id, created_at asc);
 create index if not exists idx_notifications_recipient_read on public.notifications(recipient_id, read, created_at desc);
 create index if not exists idx_document_versions_document_created on public.document_versions(document_id, created_at desc);
+create index if not exists idx_document_collaboration_updated on public.document_collaboration_states(updated_at desc);
 create index if not exists idx_document_tags_tag on public.document_tags(tag);
 create index if not exists idx_document_events_document_created on public.document_events(document_id, created_at desc);
 create index if not exists idx_document_events_actor_created on public.document_events(actor_id, created_at desc);

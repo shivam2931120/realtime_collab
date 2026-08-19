@@ -11,6 +11,8 @@ Realtime document collaboration and team inbox workspace built with:
 - Socket.io
 - Internal token-based email auth
 - EmailJS transactional email
+- Yjs CRDT collaboration with persisted state and a legacy realtime fallback
+- NVIDIA Nemotron writing assistance and semantic search
 
 ## Project structure
 
@@ -56,6 +58,12 @@ EMAILJS_MIN_INTERVAL_MS=1100
 
 # Optional Redis cache/pubsub
 REDIS_URL=
+
+# Optional backend-only NVIDIA AI
+NVIDIA_API_KEY=
+NVIDIA_API_BASE_URL=https://integrate.api.nvidia.com/v1
+NVIDIA_NEMOTRON_MODEL=nvidia/llama-3.3-nemotron-super-49b-v1.5
+NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5
 ```
 
 3. Configure frontend env (`frontend/.env`):
@@ -118,10 +126,11 @@ Frontend runs on `http://localhost:5173`.
 - `DELETE /api/docs/:id`
 - `GET /api/docs/:id/comments`
 - `POST /api/docs/:id/comments`
+- `POST /api/docs/:id/ai/write`
 - `POST /api/docs/:id/versions`
 - `GET /api/docs/:id/versions`
 - `POST /api/docs/:id/versions/:versionId/restore`
-- `GET /api/docs/search`
+- `GET /api/docs/search` (`mode=semantic` enables meaning search with automatic keyword fallback)
 - `GET /api/docs/tags`
 - `GET /api/docs/:id/tags`
 - `PUT /api/docs/:id/tags`
@@ -141,6 +150,10 @@ Frontend runs on `http://localhost:5173`.
 - `join-doc`
 - `send-changes`
 - `receive-changes`
+- `yjs-sync-request`
+- `yjs-sync`
+- `yjs-update`
+- `yjs-unavailable`
 - `cursor-move`
 - `active-users`
 

@@ -7,12 +7,14 @@ Components
 - Backend: Node.js + Express + TypeScript. Provides REST APIs, Socket.IO realtime server, and mailer utilities.
 - Auth: Internal signed session tokens. Backend verifies bearer tokens and derives stable user identity from email.
 - Database: Supabase (Postgres). Stores documents, comments, versions, and metadata.
-- Realtime: Socket.IO + Redis (optional). Socket room per document, presence tracked by session-id.
+- Realtime: Yjs CRDT updates over authenticated Socket.IO rooms. Redis remains optional for multi-instance fan-out, and the legacy HTML event is retained as a rolling-deployment fallback.
 - Cache/PubSub: Redis used for scaling Socket.IO across nodes and simple caching.
 
 Data flow
-- Document edits: frontend -> Socket.IO `send-changes` -> backend broadcasts `receive-changes` to room -> frontend applies remote changes.
-- Persistence: backend persists periodic snapshots and versions into Supabase via API calls.
+- Document edits: Tiptap binds to a per-document Y.Doc; incremental `yjs-update` messages converge independently of arrival order and persist in `document_collaboration_states`.
+- Compatibility persistence: merged HTML remains in `documents.content` for exports, public views, versions, and older clients.
+- AI: authenticated backend routes call NVIDIA's OpenAI-compatible API. The API key never enters the frontend bundle.
+- Semantic search embeds the query and accessible document passages, including comments, embedded attachment metadata, and version text. NVIDIA failures fall back to keyword results.
 - Presence: clients emit `cursor-move` events with session-scoped identity; server aggregates active sessions and broadcasts `active-users` updates.
 
 Auth and identity

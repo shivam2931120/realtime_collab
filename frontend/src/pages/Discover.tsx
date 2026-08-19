@@ -42,6 +42,10 @@ const DiscoverPage = () => {
   const [popularTags, setPopularTags] = useState<TagCountItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchMode, setSearchMode] = useState<"keyword" | "semantic">(
+    searchParams.get("mode") === "semantic" ? "semantic" : "keyword",
+  );
+  const [resolvedMode, setResolvedMode] = useState<"keyword" | "semantic">("keyword");
 
   const fetchPopularTags = async () => {
     try {
@@ -56,19 +60,21 @@ const DiscoverPage = () => {
     }
   };
 
-  const runSearch = async (nextQuery: string, nextTags: string[]) => {
+  const runSearch = async (nextQuery: string, nextTags: string[], mode = searchMode) => {
     setLoading(true);
     setError("");
 
     try {
-      const response = await api.get<{ results: SearchResultItem[] }>("/docs/search", {
+      const response = await api.get<{ results: SearchResultItem[]; mode?: "keyword" | "semantic" }>("/docs/search", {
         params: {
           q: nextQuery,
           tags: nextTags.join(","),
+          mode,
         },
       });
 
       setResults(response.data.results || []);
+      setResolvedMode(response.data.mode || "keyword");
     } catch (requestError) {
       if (axios.isAxiosError(requestError)) {
         setError(requestError.response?.data?.message || "Search failed");
@@ -100,9 +106,10 @@ const DiscoverPage = () => {
     } else {
       nextParams.delete("tags");
     }
+    nextParams.set("mode", searchMode);
 
     setSearchParams(nextParams, { replace: true });
-    runSearch(query.trim(), selectedTags).catch(console.error);
+    runSearch(query.trim(), selectedTags, searchMode).catch(console.error);
   };
 
   const toggleTag = (tag: string) => {
@@ -139,6 +146,13 @@ const DiscoverPage = () => {
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSearchMode((current) => current === "semantic" ? "keyword" : "semantic")}
+                className={`rounded-full border px-3 py-1 text-xs transition ${searchMode === "semantic" ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-on-surface-variant"}`}
+              >
+                {searchMode === "semantic" ? "Meaning search on" : "Use meaning search"}
+              </button>
               {popularTags.map((tag) => (
                 <button
                   key={tag.name}
@@ -160,7 +174,7 @@ const DiscoverPage = () => {
         <section className="rounded border border-white/5 bg-surface-container p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Indexed documents</h2>
-            <span className="text-xs uppercase tracking-widest text-on-surface-variant">{totalLabel}</span>
+            <span className="text-xs uppercase tracking-widest text-on-surface-variant">{totalLabel} · {resolvedMode}</span>
           </div>
 
           {error ? <p className="mb-4 text-sm text-error">{error}</p> : null}

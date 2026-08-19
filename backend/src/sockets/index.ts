@@ -2,6 +2,11 @@ import { Server } from "socket.io";
 import { supabase } from "../config/supabase";
 import { verifyAuthToken } from "../utils/authToken";
 import { maybeCreateAutomaticVersion } from "../utils/documentVersions";
+import {
+  applyCollaborationUpdate,
+  encodeUpdate,
+  getCollaborationState,
+} from "../utils/yjsCollaboration";
 
 type ActiveSocketUser = {
   id: string;
@@ -172,6 +177,41 @@ export const setupSockets = (io: Server) => {
         socket.to(payload.documentId).emit("receive-changes", payload.content);
       } catch (error) {
         socket.emit("doc-error", { message: "Realtime sync failed" });
+      }
+    });
+
+    socket.on("yjs-sync-request", async (documentId: string) => {
+      try {
+        const activeUser = socket.data.user as ActiveSocketUser | undefined;
+        if (!documentId || !activeUser?.id) return;
+        const doc = await fetchDocumentForAccess(documentId);
+        if (!doc || doc.deleted_at || !getRoleForUser(doc, activeUser.id)) {
+          socket.emit("doc-error", { message: "Document access denied" });
+          return;
+        }
+        socket.emit("yjs-sync", { documentId, update: await getCollaborationState(documentId) });
+      } catch (error) {
+        // Older schemas continue through the existing full-document transport.
+        socket.emit("yjs-unavailable", { documentId });
+      }
+    });
+
+    socket.on("yjs-update", async (payload: { documentId?: string; update?: string }) => {
+      try {
+        const activeUser = socket.data.user as ActiveSocketUser | undefined;
+        if (!payload?.documentId || !payload.update || !activeUser?.id) return;
+        const doc = await fetchDocumentForAccess(payload.documentId);
+        if (!doc || doc.deleted_at) return;
+        const role = getRoleForUser(doc, activeUser.id);
+        if (!role || role === "viewer" || role === "commenter") return;
+
+        const update = await applyCollaborationUpdate(payload.documentId, payload.update);
+        socket.to(payload.documentId).emit("yjs-update", {
+          documentId: payload.documentId,
+          update: encodeUpdate(update),
+        });
+      } catch (error) {
+        socket.emit("doc-error", { message: "Collaborative update was rejected" });
       }
     });
 

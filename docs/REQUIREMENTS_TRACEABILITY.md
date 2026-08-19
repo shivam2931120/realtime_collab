@@ -8,7 +8,7 @@ Source: `project.pdf` LogicVeda Real-Time Collaboration Platform requirements.
 | --- | --- | --- |
 | F01 | Email/password auth, refresh, logout, reset | `POST /api/auth/register`, `/login`, `/refresh`, `/logout`, `/password-reset/request`, `/password-reset/confirm`. Existing `/auth/session` remains for demo access. Requires the latest `supabase_schema.sql` auth tables. |
 | F02 | Document CRUD, owner delete, soft delete | Document create/list/read/update/delete is implemented. Owner-only delete writes `deleted_at` and hides the document from active workspaces while preserving comments, permissions, and version history. |
-| F03 | Real-time editing | **Partial:** Socket.io rooms broadcast editor HTML updates, save to Supabase, and keep remote tabs visible. Automatic 30-second snapshots reduce recovery risk. The current whole-document last-write-wins transport is not OT/CRDT and does not yet guarantee zero lost characters during simultaneous edits. |
+| F03 | Real-time editing | Tiptap uses Yjs CRDT updates over authenticated Socket.IO rooms. Updates converge without whole-document overwrites, Yjs state persists in Supabase, and HTML persistence remains for exports and rolling-deployment fallback. |
 | F04 | Presence/cursors | `join-doc`, `active-users`, `cursor-move`, and `presence-ping` show collaborators, idle state, and remote cursor labels. |
 | F05 | Comments/mentions | Persisted parent/child threads, replies, resolved/open state, anchored editor ranges, and `@email` mention notifications plus email delivery are implemented. Requires the latest `comments.parent_id` schema migration. |
 | F06 | Version history | Manual snapshots, automatic snapshots, version list, and persisted restore endpoint are implemented. |

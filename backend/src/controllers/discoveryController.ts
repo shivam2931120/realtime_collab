@@ -10,6 +10,7 @@ import { trackDocumentEvent } from "../utils/analytics";
 import { isMissingTableError } from "../utils/dbErrors";
 import { getCache, setCache, invalidateCachePrefix, publishEvent } from "../utils/redis";
 import { emailFromUserId } from "../utils/userIdentity";
+import { createEmbeddings, isNvidiaConfigured } from "../utils/nvidiaAi";
 
 const turndown = new TurndownService({ headingStyle: "atx", bulletListMarker: "-" });
 
@@ -63,6 +64,24 @@ const buildSnippet = (value: string, maxLength = 220) => {
   }
   return `${compact.slice(0, maxLength - 1)}...`;
 };
+
+const cosineSimilarity = (left: number[], right: number[]) => {
+  if (!left.length || left.length !== right.length) return 0;
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    dot += left[index] * right[index];
+    leftNorm += left[index] ** 2;
+    rightNorm += right[index] ** 2;
+  }
+  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm) || 1);
+};
+
+const extractAttachmentText = (html: string) =>
+  Array.from(html.matchAll(/<(?:img|a)[^>]+(?:alt|title|href)=["']([^"']+)["'][^>]*>/gi))
+    .map((match) => match[1])
+    .join(" ");
 
 const parseDataUrlBase64 = (value: string) => {
   const base64 = value.includes(",") ? value.split(",")[1] : value;
@@ -269,12 +288,13 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
 
     const userId = auth.userId;
     const query = String(req.query.q || "").trim().toLowerCase();
+    const requestedMode = String(req.query.mode || "keyword") === "semantic" ? "semantic" : "keyword";
     const selectedTags = String(req.query.tags || "")
       .split(",")
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean);
 
-    const cacheKey = `search:${userId}:${query}:${selectedTags.join("|")}`;
+    const cacheKey = `search:${requestedMode}:${userId}:${query}:${selectedTags.join("|")}`;
     const cached = await getCache<{ query: string; tags: string[]; results: any[] }>(cacheKey);
     if (cached) {
       return res.json(cached);
@@ -282,12 +302,40 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
 
     const docs = await getAccessibleDocuments(userId);
     const documentIds = docs.map((doc) => doc.id);
-    const [tagsByDocId, commentsByDocId, collaboratorsByDocId, folderNamesById] = await Promise.all([
+    const [tagsByDocId, commentsByDocId, collaboratorsByDocId, folderNamesById, versionsResponse] = await Promise.all([
       loadTagsByDocumentIds(documentIds).catch(() => new Map<string, string[]>()),
       loadCommentsByDocumentIds(documentIds).catch(() => new Map<string, Array<{ id: string; content: string; author: string }>>()),
       loadCollaboratorsByDocumentIds(documentIds).catch(() => new Map<string, Array<{ email: string; role: CollaboratorRole }>>()),
       loadFolderNamesByIds(docs.map((doc) => doc.folder_id || "").filter(Boolean)).catch(() => new Map<string, string>()),
+      documentIds.length
+        ? supabase.from("document_versions").select("document_id,content").in("document_id", documentIds).limit(500)
+        : Promise.resolve({ data: [] as any[] }),
     ]);
+
+    const versionsByDocId = new Map<string, string[]>();
+    for (const version of versionsResponse.data || []) {
+      const existing = versionsByDocId.get(version.document_id) || [];
+      existing.push(stripHtml(version.content || ""));
+      versionsByDocId.set(version.document_id, existing);
+    }
+
+    let semanticScores = new Map<string, number>();
+    let semanticAvailable = false;
+    if (requestedMode === "semantic" && query && isNvidiaConfigured() && docs.length) {
+      try {
+        const passages = docs.map((doc) => {
+          const comments = (commentsByDocId.get(doc.id) || []).map((comment) => stripHtml(comment.content)).join(" ");
+          const versions = (versionsByDocId.get(doc.id) || []).slice(0, 8).join(" ");
+          return `${doc.title}\n${stripHtml(doc.content || "")}\nComments: ${comments}\nAttachments: ${extractAttachmentText(doc.content || "")}\nPrevious versions: ${versions}`.slice(0, 12_000);
+        });
+        const [queryEmbedding] = await createEmbeddings([query], "query");
+        const passageEmbeddings = await createEmbeddings(passages, "passage");
+        semanticScores = new Map(docs.map((doc, index) => [doc.id, cosineSimilarity(queryEmbedding, passageEmbeddings[index] || [])]));
+        semanticAvailable = true;
+      } catch (semanticError) {
+        console.error("Semantic search unavailable; using keyword search", semanticError instanceof Error ? semanticError.message : semanticError);
+      }
+    }
 
     const results = docs
       .map((doc) => {
@@ -300,7 +348,8 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
         const folderName = doc.folder_id ? folderNamesById.get(doc.folder_id) || "" : "";
         const haystack = `${doc.title} ${text} ${tags.join(" ")} ${commentText} ${collaboratorText} ${ownerEmail} ${folderName}`.toLowerCase();
 
-        const matchesQuery = !query || haystack.includes(query);
+        const semanticScore = semanticScores.get(doc.id) || 0;
+        const matchesQuery = !query || (semanticAvailable ? semanticScore > 0 : haystack.includes(query));
         const matchesTags = !selectedTags.length || selectedTags.every((tag) => tags.includes(tag));
 
         if (!matchesQuery || !matchesTags) {
@@ -308,6 +357,7 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
         }
 
         let score = 0;
+        if (semanticAvailable) score += semanticScore * 100;
         if (query) {
           if (doc.title.toLowerCase().includes(query)) {
             score += 12;
@@ -347,12 +397,14 @@ export const searchDocuments = async (req: AuthRequest, res: Response) => {
           })),
           updatedAt: doc.updated_at,
           score,
+          semanticScore: semanticAvailable ? Number(semanticScore.toFixed(4)) : null,
+          matchMode: semanticAvailable ? "semantic" : "keyword",
         };
       })
       .filter(Boolean)
       .sort((first: any, second: any) => second.score - first.score);
 
-    const payload = { query, tags: selectedTags, results };
+    const payload = { query, tags: selectedTags, mode: semanticAvailable ? "semantic" : "keyword", results };
     await setCache(cacheKey, payload, 45);
 
     return res.json(payload);

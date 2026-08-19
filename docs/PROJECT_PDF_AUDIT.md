@@ -10,7 +10,7 @@ This audit treats source code, schema, tests, deployment configuration, and live
 | --- | --- | --- |
 | F-01 Authentication | Implemented | Register, login, logout, signed access/refresh tokens, refresh-token revocation, and password-reset request/confirm exist in the API and UI. Passwords use Node `scrypt` with per-password salts. |
 | F-02 Document CRUD | Implemented | Create, list, read, update, owner-only soft delete, trash restore, and owner-only permanent deletion are implemented. Active queries exclude `deleted_at` rows. |
-| F-03 Real-time editing | Partial - critical | Authenticated Socket.IO rooms, persistence, and remote updates work. The transport sends complete HTML and is last-write-wins; it is not OT/CRDT and cannot guarantee the PDF acceptance criterion of no lost characters under concurrent typing. Replace it with Yjs updates and persist Yjs state before claiming completion. |
+| F-03 Real-time editing | Implemented | Tiptap is bound to Yjs CRDT state, authenticated Socket.IO transports incremental updates, compact state is persisted, and the previous HTML event remains only as a safe fallback during rolling deployment. |
 | F-04 Presence | Implemented | Session-scoped join/leave, active-user lists, stable user colors, named cursor overlays, heartbeats, idle indication, and disconnect cleanup are present. |
 | F-05 Threaded comments | Implemented in code; migration required | Range anchors, persisted parent/child replies, edit/delete, resolve/reopen, mentions, in-app notices, and email attempts are implemented. Apply the new `comments.parent_id` migration from `supabase_schema.sql` to the active database. |
 | F-06 Version history | Implemented | Manual and automatic snapshots, timeline metadata, word/character diff summaries, previews, and restoration are present. The diff is summary/set based rather than an exact ordered redline. |
@@ -48,7 +48,7 @@ This audit treats source code, schema, tests, deployment configuration, and live
 
 ## Recommended next features
 
-1. **Yjs collaboration core (highest priority):** binary incremental updates, awareness protocol, persisted snapshots, reconnect state-vector sync, and conflict-focused browser tests. This closes the only critical functional acceptance gap.
+1. **Yjs collaboration hardening:** CRDT updates and persisted state are implemented; add a Playwright multi-browser soak test and state-vector differential sync for very large documents.
 2. **Review/suggestion mode:** proposed insertions/deletions that owners can accept or reject, with an audit trail.
 3. **Workspace-level roles and groups:** team membership, reusable groups, default folder permissions, and access-review reports.
 4. **Document locking and protected sections:** optional locks for legal/publishing workflows while retaining comments elsewhere.
@@ -64,4 +64,3 @@ This audit treats source code, schema, tests, deployment configuration, and live
 - Backend TypeScript build: passed.
 - Frontend TypeScript/Vite production build: passed; Vite reports an editor chunk above 500 kB.
 - Source/schema trace completed across authentication, CRUD, sockets, comments, versions, permissions, notifications, search, offline recovery, security, deployment, and submission artifacts.
-

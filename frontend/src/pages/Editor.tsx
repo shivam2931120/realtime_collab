@@ -15,6 +15,8 @@ import Highlight from "@tiptap/extension-highlight";
 import { Color } from "@tiptap/extension-color";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Youtube from "@tiptap/extension-youtube";
+import Collaboration from "@tiptap/extension-collaboration";
+import * as Y from "yjs";
 import { SlashCommands } from "../components/editor/SlashCommands";
 import suggestion from "../components/editor/suggestion";
 import axios from "axios";
@@ -114,6 +116,7 @@ type LocalDraft = {
   title: string;
   updatedAt: string;
 };
+type AiAction = "summarize" | "rewrite" | "grammar" | "tone" | "outline" | "actions";
 
 const textColorOptions = [
   { label: "Ink", value: "#131313" },
@@ -142,6 +145,15 @@ const stableHueFromId = (id: string) =>
 
 const clampCursorPosition = (pos: number, maxPos: number) =>
   Math.max(1, Math.min(pos, maxPos));
+
+const updateToBase64 = (update: Uint8Array) => {
+  let binary = "";
+  update.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return window.btoa(binary);
+};
+
+const base64ToUpdate = (value: string) =>
+  Uint8Array.from(window.atob(value), (character) => character.charCodeAt(0));
 
 
 const stripContent = (content: string) =>
@@ -313,6 +325,7 @@ const menuButtonClass =
 
 const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
+  const collaborationDoc = useMemo(() => new Y.Doc(), [id]);
   const navigate = useNavigate();
   const location = useLocation();
   const userEmail = useAuthStore((state) => state.user?.email);
@@ -326,6 +339,14 @@ const EditorPage = () => {
   const [socketState, setSocketState] = useState("offline");
   const [browserOnline, setBrowserOnline] = useState(() => navigator.onLine);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [yjsReady, setYjsReady] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiAction, setAiAction] = useState<AiAction>("rewrite");
+  const [aiTone, setAiTone] = useState("professional");
+  const [aiResult, setAiResult] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiSource, setAiSource] = useState("");
+  const aiSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const [comments, setComments] = useState<DocComment[]>([]);
   const [commentFilter, setCommentFilter] = useState<"open" | "resolved" | "all">("open");
   const [commentBody, setCommentBody] = useState("");
@@ -388,13 +409,16 @@ const EditorPage = () => {
   const queuedSaveContentRef = useRef<string | null>(null);
   const savingContentRef = useRef(false);
   const applyingRemoteRef = useRef(false);
+  const yjsReadyRef = useRef(false);
+  const legacyRealtimeRef = useRef(false);
   const docRef = useRef<DocItem | null>(null);
   const cursorEmitRef = useRef<number>(0);
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null);
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ history: false }),
+      Collaboration.configure({ document: collaborationDoc }),
       Underline,
       Link.configure({
         openOnClick: false,
@@ -440,7 +464,9 @@ const EditorPage = () => {
       },
     },
     immediatelyRender: false,
-  });
+  }, [collaborationDoc]);
+
+  useEffect(() => () => collaborationDoc.destroy(), [collaborationDoc]);
 
   useEffect(() => {
     docRef.current = activeDoc;
@@ -631,7 +657,7 @@ const EditorPage = () => {
 
     editor.setEditable(canEditDocument(activeDoc.role));
 
-    if (editor.getHTML() !== activeDoc.content) {
+    if ((yjsReady || legacyRealtimeRef.current) && editor.getHTML() !== activeDoc.content) {
       applyingRemoteRef.current = true;
       editor.commands.setContent(activeDoc.content || "<p></p>", false);
       setEditorRevision((current) => current + 1);
@@ -639,7 +665,7 @@ const EditorPage = () => {
         applyingRemoteRef.current = false;
       }, 0);
     }
-  }, [editor, activeDoc?.id, activeDoc?.content, activeDoc?.role]);
+  }, [editor, activeDoc?.id, activeDoc?.content, activeDoc?.role, yjsReady]);
 
   useEffect(() => {
     const currentDoc = docRef.current;
@@ -654,6 +680,7 @@ const EditorPage = () => {
     let handleEditorUpdateRef: (() => void) | null = null;
     let handleSelectionUpdateRef: (() => void) | null = null;
     let handleEditorTypingRef: (() => void) | null = null;
+    let handleLocalYjsUpdateRef: ((update: Uint8Array, origin: unknown) => void) | null = null;
 
     const initializeSocket = async () => {
       const token = getAuthToken();
@@ -666,6 +693,8 @@ const EditorPage = () => {
 
       const handleConnect = () => {
         setSocketState("connected");
+        socket?.emit("join-doc", id, userEmail);
+        socket?.emit("yjs-sync-request", id);
         flushQueuedSave().catch(console.error);
       };
       const handleDisconnect = () => setSocketState("offline");
@@ -677,6 +706,7 @@ const EditorPage = () => {
         setSocketState("offline");
       };
       const handleReceiveChanges = (nextContent: string) => {
+        if (!legacyRealtimeRef.current) return;
         if (!editor || nextContent === editor.getHTML()) {
           return;
         }
@@ -698,6 +728,45 @@ const EditorPage = () => {
           upsertDoc(nextDoc);
         }
       };
+
+      const enableLegacyRealtime = () => {
+        legacyRealtimeRef.current = true;
+        yjsReadyRef.current = false;
+        setYjsReady(false);
+        if (currentDoc.content && editor.getHTML() !== currentDoc.content) {
+          applyingRemoteRef.current = true;
+          editor.commands.setContent(currentDoc.content, false);
+          applyingRemoteRef.current = false;
+        }
+      };
+
+      const handleYjsSync = (payload: { documentId: string; update?: string | null }) => {
+        if (payload.documentId !== id) return;
+        legacyRealtimeRef.current = false;
+        applyingRemoteRef.current = true;
+        if (payload.update) {
+          Y.applyUpdate(collaborationDoc, base64ToUpdate(payload.update), "remote");
+        }
+        yjsReadyRef.current = true;
+        setYjsReady(true);
+        if (!payload.update && collaborationDoc.getXmlFragment("default").length === 0) {
+          editor.commands.setContent(currentDoc.content || "<p></p>", false);
+        }
+        applyingRemoteRef.current = false;
+      };
+
+      const handleYjsUpdate = (payload: { documentId: string; update: string }) => {
+        if (payload.documentId !== id || !payload.update) return;
+        applyingRemoteRef.current = true;
+        Y.applyUpdate(collaborationDoc, base64ToUpdate(payload.update), "remote");
+        applyingRemoteRef.current = false;
+      };
+
+      const handleLocalYjsUpdate = (update: Uint8Array, origin: unknown) => {
+        if (origin === "remote" || !yjsReadyRef.current || !canEdit) return;
+        socket?.emit("yjs-update", { documentId: id, update: updateToBase64(update) });
+      };
+      handleLocalYjsUpdateRef = handleLocalYjsUpdate;
 
       const handleActiveUsers = (users: ActiveSession[]) => setActiveUsers(users);
       const handleCursorMove = (cursor: RemoteCursor) => {
@@ -721,10 +790,9 @@ const EditorPage = () => {
 
         const content = editor.getHTML();
 
-        socket?.emit("send-changes", {
-          documentId: id,
-          content,
-        });
+        if (legacyRealtimeRef.current) {
+          socket?.emit("send-changes", { documentId: id, content });
+        }
 
         const nextDoc = {
           ...latestDoc,
@@ -774,10 +842,12 @@ const EditorPage = () => {
         setSocketState("connected");
       }
 
-      socket?.emit("join-doc", id, userEmail);
       socket?.on("connect", handleConnect);
       socket?.on("disconnect", handleDisconnect);
       socket?.on("receive-changes", handleReceiveChanges);
+      socket?.on("yjs-sync", handleYjsSync);
+      socket?.on("yjs-update", handleYjsUpdate);
+      socket?.on("yjs-unavailable", enableLegacyRealtime);
       socket?.on("active-users", handleActiveUsers);
       socket?.on("cursor-move", handleCursorMove);
       socket?.on("doc-error", handleDocError);
@@ -785,6 +855,13 @@ const EditorPage = () => {
       editor.on("update", handleEditorUpdate);
       editor.on("selectionUpdate", handleSelectionUpdate);
       editor.on("transaction", handleEditorTyping);
+      collaborationDoc.on("update", handleLocalYjsUpdate);
+
+      if (socket?.connected) handleConnect();
+
+      window.setTimeout(() => {
+        if (isActive && !yjsReadyRef.current) enableLegacyRealtime();
+      }, 5000);
     };
 
     initializeSocket().catch((requestError) => {
@@ -798,6 +875,9 @@ const EditorPage = () => {
         socket.off("connect");
         socket.off("disconnect");
         socket.off("receive-changes");
+        socket.off("yjs-sync");
+        socket.off("yjs-update");
+        socket.off("yjs-unavailable");
         socket.off("active-users");
         socket.off("cursor-move");
         socket.off("doc-error");
@@ -807,10 +887,11 @@ const EditorPage = () => {
       if (handleEditorUpdateRef) editor.off("update", handleEditorUpdateRef);
       if (handleSelectionUpdateRef) editor.off("selectionUpdate", handleSelectionUpdateRef);
       if (handleEditorTypingRef) editor.off("transaction", handleEditorTypingRef);
+      if (handleLocalYjsUpdateRef) collaborationDoc.off("update", handleLocalYjsUpdateRef);
       window.clearTimeout(saveTimerRef.current);
       setRemoteCursors([]);
     };
-  }, [editor, id, activeDoc?.id, activeDoc?.role, userEmail]);
+  }, [editor, id, activeDoc?.id, activeDoc?.role, userEmail, collaborationDoc]);
 
   useEffect(() => {
     if (!editor || !editorSurfaceRef.current || remoteCursors.length === 0) {
@@ -1543,6 +1624,41 @@ const EditorPage = () => {
       reader.readAsText(file);
     };
     input.click();
+  };
+
+  const openAiAssistant = () => {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    aiSelectionRef.current = empty ? null : { from, to };
+    setAiSource(empty ? stripContent(editor.getHTML()) : editor.state.doc.textBetween(from, to, "\n"));
+    setAiResult("");
+    setAiOpen(true);
+  };
+
+  const runAiAssistant = async () => {
+    if (!id || !aiSource.trim()) return;
+    setAiBusy(true);
+    setError("");
+    try {
+      const response = await api.post<{ result: string }>(`/docs/${id}/ai/write`, {
+        action: aiAction,
+        text: aiSource,
+        tone: aiTone,
+      });
+      setAiResult(response.data.result);
+    } catch (requestError) {
+      setError(axios.isAxiosError(requestError) ? requestError.response?.data?.message || "AI request failed" : "AI request failed");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const applyAiResult = () => {
+    if (!editor || !aiResult) return;
+    const range = aiSelectionRef.current;
+    if (range) editor.chain().focus().insertContentAt(range, aiResult).run();
+    else editor.chain().focus().insertContent(aiResult).run();
+    setAiOpen(false);
   };
 
   const editorDisabled = !editor || !canEditDocument(activeDoc?.role);
@@ -2327,6 +2443,10 @@ const EditorPage = () => {
                     <option value="h2">H2</option>
                     <option value="h3">H3</option>
                   </select>
+                  <button type="button" title="Nemotron writing assistant" disabled={editorDisabled} onClick={openAiAssistant}>
+                    <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                  </button>
+                  <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block md:mx-2" />
                   {toolbarItems.map((item, index) => (
                     <div
                       key={item.label}
@@ -3374,6 +3494,38 @@ const EditorPage = () => {
                   {savingShare ? "Saving..." : "Share"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {aiOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 sm:items-center sm:px-4">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-lg border border-outline-variant/10 p-5 shadow-2xl sm:rounded-lg">
+            <div className="flex items-start justify-between gap-4">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">NVIDIA NEMOTRON</p><h2 className="mt-2 text-xl font-bold text-white">Writing assistant</h2></div>
+              <button type="button" onClick={() => setAiOpen(false)} className="rounded p-2 text-on-surface-variant hover:bg-white/10"><span className="material-symbols-outlined">close</span></button>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-on-surface-variant">Action
+                <select className="emerald-input mt-2 w-full" value={aiAction} onChange={(event) => setAiAction(event.target.value as AiAction)}>
+                  <option value="summarize">Summarize</option><option value="rewrite">Rewrite</option><option value="grammar">Correct grammar</option><option value="tone">Change tone</option><option value="outline">Generate outline</option><option value="actions">Extract action items</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-on-surface-variant">Tone
+                <input className="emerald-input mt-2 w-full" value={aiTone} onChange={(event) => setAiTone(event.target.value)} disabled={aiAction !== "tone"} />
+              </label>
+            </div>
+            <label className="mt-4 block text-xs font-semibold text-on-surface-variant">Source text
+              <textarea className="emerald-input mt-2 min-h-28 w-full" value={aiSource} onChange={(event) => setAiSource(event.target.value)} maxLength={20000} />
+            </label>
+            {aiResult ? <label className="mt-4 block text-xs font-semibold text-on-surface-variant">Result
+              <textarea className="emerald-input mt-2 min-h-36 w-full" value={aiResult} onChange={(event) => setAiResult(event.target.value)} />
+            </label> : null}
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" className="emerald-muted-button" onClick={() => setAiOpen(false)}>Cancel</button>
+              {aiResult ? <button type="button" className="emerald-muted-button" onClick={applyAiResult}>{aiSelectionRef.current ? "Replace selection" : "Insert result"}</button> : null}
+              <button type="button" className="emerald-primary-button" disabled={aiBusy || !aiSource.trim()} onClick={() => void runAiAssistant()}>{aiBusy ? "Generating…" : "Generate"}</button>
             </div>
           </div>
         </div>
