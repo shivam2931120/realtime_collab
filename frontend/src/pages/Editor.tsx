@@ -329,6 +329,7 @@ const EditorPage = () => {
   const [comments, setComments] = useState<DocComment[]>([]);
   const [commentFilter, setCommentFilter] = useState<"open" | "resolved" | "all">("open");
   const [commentBody, setCommentBody] = useState("");
+  const [replyingToCommentId, setReplyingToCommentId] = useState("");
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareEmails, setShareEmails] = useState("");
   const [shareRole, setShareRole] = useState<ShareRole>("editor");
@@ -476,7 +477,7 @@ const EditorPage = () => {
       window.clearTimeout(retryTimerRef.current);
       retryTimerRef.current = window.setTimeout(() => {
         flushQueuedSave().catch(console.error);
-      }, 3000);
+      }, 5000);
     } finally {
       savingContentRef.current = false;
       if (queuedSaveContentRef.current && navigator.onLine) {
@@ -1026,6 +1027,7 @@ const EditorPage = () => {
 
     const response = await api.post<{ comment: DocComment }>(`/docs/${id}/comments`, {
       body: commentBody.trim(),
+      parentId: replyingToCommentId || null,
       position: selection
         ? {
             from: selection.from,
@@ -1037,6 +1039,7 @@ const EditorPage = () => {
 
     setComments((current) => [response.data.comment, ...current]);
     setCommentBody("");
+    setReplyingToCommentId("");
   };
 
   const focusCommentPosition = (comment: DocComment) => {
@@ -1098,6 +1101,7 @@ const EditorPage = () => {
 
   const replyToComment = (comment: DocComment) => {
     setCommentBody(`@${comment.author.email} `);
+    setReplyingToCommentId(comment.parentId || comment.id);
     if (mobilePanel !== "comments") {
       setShowComments(true);
     }
@@ -1784,6 +1788,14 @@ const EditorPage = () => {
     if (commentFilter === "resolved") return comment.resolved;
     return !comment.resolved;
   });
+  const orderedFilteredComments = filteredComments
+    .filter((comment) => !comment.parentId)
+    .flatMap((comment) => [
+      comment,
+      ...filteredComments
+        .filter((reply) => reply.parentId === comment.id)
+        .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()),
+    ]);
   const openCommentCount = comments.filter((comment) => !comment.resolved).length;
   const resolvedCommentCount = comments.length - openCommentCount;
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || versions[0] || null;
@@ -2631,6 +2643,12 @@ const EditorPage = () => {
             </div>
 
             <div className="space-y-3">
+              {replyingToCommentId ? (
+                <div className="flex items-center justify-between rounded border border-primary/25 bg-primary/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-primary">
+                  <span>Replying in thread</span>
+                  <button type="button" onClick={() => setReplyingToCommentId("")} className="text-on-surface-variant hover:text-white">Cancel</button>
+                </div>
+              ) : null}
               <div className="flex items-center gap-3 rounded border border-white/5 bg-surface-container-high p-3">
                 <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
                 <input
@@ -2647,8 +2665,8 @@ const EditorPage = () => {
               </button>
             </div>
 
-            {filteredComments.length ? (
-              filteredComments.map((comment) => (
+            {orderedFilteredComments.length ? (
+              orderedFilteredComments.map((comment) => (
                 <EditorCommentCard
                   key={comment.id}
                   comment={comment}
@@ -2657,6 +2675,7 @@ const EditorPage = () => {
                   editing={editingCommentId === comment.id}
                   editingBody={editingCommentBody}
                   deleting={deletingCommentId === comment.id}
+                  isReply={Boolean(comment.parentId)}
                   onEditingBodyChange={setEditingCommentBody}
                   onSave={() => saveCommentEdit(comment).catch(console.error)}
                   onCancelEdit={() => {
@@ -2869,8 +2888,14 @@ const EditorPage = () => {
               </div>
 
               <div className="space-y-3">
-                {filteredComments.length ? (
-                  filteredComments.map((comment) => (
+                {replyingToCommentId ? (
+                  <div className="flex items-center justify-between rounded border border-primary/25 bg-primary/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-primary">
+                    <span>Replying in thread</span>
+                    <button type="button" onClick={() => setReplyingToCommentId("")} className="text-on-surface-variant active:text-white">Cancel</button>
+                  </div>
+                ) : null}
+                {orderedFilteredComments.length ? (
+                  orderedFilteredComments.map((comment) => (
                     <EditorCommentCard
                       key={`mobile-${comment.id}`}
                       comment={comment}
@@ -2879,6 +2904,7 @@ const EditorPage = () => {
                       editing={editingCommentId === comment.id}
                       editingBody={editingCommentBody}
                       deleting={deletingCommentId === comment.id}
+                      isReply={Boolean(comment.parentId)}
                       compact
                       onEditingBodyChange={setEditingCommentBody}
                       onSave={() => saveCommentEdit(comment).catch(console.error)}

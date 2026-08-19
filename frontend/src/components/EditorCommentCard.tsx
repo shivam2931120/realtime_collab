@@ -8,6 +8,7 @@ type EditorCommentCardProps = {
   editingBody: string;
   deleting: boolean;
   compact?: boolean;
+  isReply?: boolean;
   onEditingBodyChange: (value: string) => void;
   onSave: () => void;
   onCancelEdit: () => void;
@@ -26,6 +27,7 @@ const EditorCommentCard = ({
   editingBody,
   deleting,
   compact = false,
+  isReply = false,
   onEditingBodyChange,
   onSave,
   onCancelEdit,
@@ -41,7 +43,7 @@ const EditorCommentCard = ({
     : "flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant transition hover:border-primary/40 hover:text-primary";
 
   return (
-    <div className={`space-y-3 rounded-lg border-l-2 bg-surface-container p-4 shadow-sm ${comment.resolved ? "border-white/10 opacity-75" : "border-primary"}`}>
+    <div className={`space-y-3 rounded-lg border-l-2 bg-surface-container p-4 shadow-sm ${isReply ? "ml-5 border-l-white/20" : ""} ${comment.resolved ? "border-white/10 opacity-75" : "border-primary"}`}>
       <div className="flex items-center gap-2">
         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-highest text-[10px] uppercase text-white">
           {comment.author.email.slice(0, 2)}
@@ -51,6 +53,7 @@ const EditorCommentCard = ({
           <div className="text-[9px] text-[#a3a3a3]">{new Date(comment.createdAt).toLocaleString()}</div>
         </div>
       </div>
+      {isReply ? <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Thread reply</p> : null}
       {editing ? (
         <div className="space-y-2">
           <textarea className="emerald-input min-h-[82px] resize-none text-xs" value={editingBody} onChange={(event) => onEditingBodyChange(event.target.value)} />

@@ -99,6 +99,7 @@ alter table public.document_collaborators
 create table if not exists public.comments (
   id uuid primary key default gen_random_uuid(),
   document_id uuid references public.documents(id) on delete cascade not null,
+  parent_id uuid references public.comments(id) on delete cascade,
   user_id text not null,
   content text not null,
   resolved boolean default false,
@@ -108,6 +109,7 @@ create table if not exists public.comments (
 
 alter table public.comments add column if not exists resolved boolean default false;
 alter table public.comments add column if not exists position jsonb;
+alter table public.comments add column if not exists parent_id uuid references public.comments(id) on delete cascade;
 
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -175,6 +177,7 @@ create index if not exists idx_documents_deleted_at on public.documents(deleted_
 create index if not exists idx_document_collaborators_user on public.document_collaborators(user_id);
 create index if not exists idx_document_collaborators_invitation_status on public.document_collaborators(invitation_status, last_invite_sent_at desc);
 create index if not exists idx_comments_document_created on public.comments(document_id, created_at desc);
+create index if not exists idx_comments_parent on public.comments(parent_id, created_at asc);
 create index if not exists idx_notifications_recipient_read on public.notifications(recipient_id, read, created_at desc);
 create index if not exists idx_document_versions_document_created on public.document_versions(document_id, created_at desc);
 create index if not exists idx_document_tags_tag on public.document_tags(tag);

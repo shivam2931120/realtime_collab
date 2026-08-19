@@ -24,6 +24,7 @@ export type DocComment = {
   id: string;
   body: string;
   resolved: boolean;
+  parentId?: string | null;
   position?: {
     from?: number;
     to?: number;

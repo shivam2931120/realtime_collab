@@ -14,6 +14,7 @@ const shapeComment = (comment: any, authorEmail: string) => ({
   id: comment.id,
   body: comment.content,
   resolved: Boolean(comment.resolved),
+  parentId: comment.parent_id || null,
   position: comment.position || null,
   createdAt: comment.created_at,
   author: {
@@ -186,9 +187,23 @@ export const createComment = async (req: AuthRequest, res: Response) => {
     }
 
     const body = String(req.body.body || "").trim();
+    const parentId = String(req.body.parentId || "").trim() || null;
 
     if (!body) {
       return res.status(400).json({ message: "Comment empty nahi ho sakta" });
+    }
+
+    if (parentId) {
+      const { data: parentComment } = await supabase
+        .from("comments")
+        .select("id")
+        .eq("id", parentId)
+        .eq("document_id", documentId)
+        .single();
+
+      if (!parentComment) {
+        return res.status(400).json({ message: "Reply target is not part of this document" });
+      }
     }
 
     const { data: comment } = await supabase
@@ -197,6 +212,7 @@ export const createComment = async (req: AuthRequest, res: Response) => {
         document_id: documentId,
         user_id: userId,
         content: body,
+        parent_id: parentId,
         position: req.body.position || null,
       })
       .select("*")
