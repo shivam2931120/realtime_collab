@@ -16,7 +16,6 @@ const DiscoverPage = lazy(() => import("./pages/Discover"));
 const LibraryPage = lazy(() => import("./pages/Library"));
 const AnalyticsPage = lazy(() => import("./pages/Analytics"));
 const PublicDocumentPage = lazy(() => import("./pages/PublicDocument"));
-const NexusLanding = lazy(() => import("./pages/NexusLanding"));
 
 type SessionResponse = {
   token: string;
@@ -308,7 +307,7 @@ const App = () => {
     >
       <SessionGate />
       <Routes>
-        <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <NexusLanding />} />
+        <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
         <Route path="/login" element={<AuthScreen mode="login" />} />
         <Route path="/register" element={<AuthScreen mode="register" />} />
         <Route path="/reset-password" element={<ResetPasswordScreen />} />
