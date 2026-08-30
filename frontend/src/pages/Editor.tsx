@@ -20,7 +20,7 @@ import * as Y from "yjs";
 import { SlashCommands } from "../components/editor/SlashCommands";
 import suggestion from "../components/editor/suggestion";
 import axios from "axios";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { connectSocket, disconnectSocket } from "../services/socket";
@@ -414,6 +414,7 @@ const EditorPage = () => {
   const docRef = useRef<DocItem | null>(null);
   const cursorEmitRef = useRef<number>(0);
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -970,6 +971,42 @@ const EditorPage = () => {
     }
 
     editor.chain().focus().setImage({ src: imageUrl }).run();
+  };
+
+  const uploadImage = () => {
+    attachmentInputRef.current?.click();
+  };
+
+  const handleAttachmentChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !editor || !id) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Only image attachments can be inserted into the editor.");
+      return;
+    }
+    if (file.size > 1.5 * 1024 * 1024) {
+      setError("Images must be smaller than 1.5 MB.");
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Image could not be read"));
+      reader.readAsDataURL(file);
+    });
+    try {
+      const response = await api.post<{ attachment: { url?: string } }>(`/docs/${id}/attachments`, {
+        fileName: file.name,
+        mimeType: file.type,
+        dataUrl,
+      });
+      if (!response.data.attachment.url) throw new Error("Attachment URL missing");
+      editor.chain().focus().setImage({ src: response.data.attachment.url, alt: file.name }).run();
+      setError("");
+    } catch (uploadError) {
+      setError(axios.isAxiosError(uploadError) ? uploadError.response?.data?.message || "Image upload failed" : "Image upload failed");
+    }
   };
 
   const addYoutubeVideo = () => {
@@ -1756,6 +1793,12 @@ const EditorPage = () => {
       label: "Image",
     },
     {
+      icon: "upload_file",
+      action: uploadImage,
+      active: false,
+      label: "Upload image",
+    },
+    {
       icon: "smart_display",
       action: addYoutubeVideo,
       active: false,
@@ -2443,7 +2486,8 @@ const EditorPage = () => {
                     <option value="h2">H2</option>
                     <option value="h3">H3</option>
                   </select>
-                  <button type="button" title="Nemotron writing assistant" disabled={editorDisabled} onClick={openAiAssistant}>
+          <input ref={attachmentInputRef} type="file" accept="image/gif,image/jpeg,image/png,image/webp" className="hidden" onChange={handleAttachmentChange} />
+          <button type="button" title="Nemotron writing assistant" disabled={editorDisabled} onClick={openAiAssistant}>
                     <span className="material-symbols-outlined text-lg">auto_awesome</span>
                   </button>
                   <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block md:mx-2" />

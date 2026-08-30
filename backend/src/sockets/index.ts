@@ -78,6 +78,18 @@ const ensureRoomMap = (
 export const setupSockets = (io: Server) => {
   const roomUsers = new Map<string, Map<string, PresenceEntry>>();
 
+  const stalePresenceTimer = setInterval(() => {
+    const cutoff = Date.now() - 90_000;
+    for (const [documentId, usersMap] of roomUsers) {
+      for (const [sessionId, presence] of usersMap) {
+        if (new Date(presence.lastSeen).getTime() < cutoff) usersMap.delete(sessionId);
+      }
+      if (!usersMap.size) roomUsers.delete(documentId);
+      broadcastActiveUsers(documentId);
+    }
+  }, 30_000);
+  stalePresenceTimer.unref?.();
+
   const broadcastActiveUsers = (documentId: string) => {
     const usersMap = roomUsers.get(documentId);
     const activeUsers = usersMap ? Array.from(usersMap.values()) : [];

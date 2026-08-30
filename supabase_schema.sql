@@ -175,6 +175,24 @@ create table if not exists public.document_public_links (
   revoked_at timestamp with time zone
 );
 
+-- File/media metadata. Binary content is kept in the private Supabase Storage bucket.
+create table if not exists public.document_attachments (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references public.documents(id) on delete cascade not null,
+  uploaded_by text not null,
+  storage_path text unique not null,
+  file_name text not null,
+  mime_type text not null,
+  size_bytes integer not null check (size_bytes > 0),
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create index if not exists idx_document_attachments_document on public.document_attachments(document_id, created_at desc);
+
+insert into storage.buckets (id, name, public)
+values ('document-attachments', 'document-attachments', false)
+on conflict (id) do nothing;
+
 -- Helpful indexes for the backend and Table Editor browsing.
 create index if not exists idx_auth_refresh_tokens_user on public.auth_refresh_tokens(user_id);
 create index if not exists idx_auth_password_reset_tokens_user on public.auth_password_reset_tokens(user_id);
@@ -292,7 +310,11 @@ select
   ) as tags,
   d.created_at,
   d.updated_at,
-  d.deleted_at
+  d.deleted_at,
+  (
+    select count(*) from public.document_attachments da
+    where da.document_id = d.id
+  ) as attachments_count
 from public.documents d
 left join public.folders f on f.id = d.folder_id;
 

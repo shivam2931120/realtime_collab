@@ -98,6 +98,11 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
     setSearchParams(nextParams, { replace: location.pathname !== "/editor" });
   };
 
+  const submitGlobalSearch = () => {
+    const query = searchTerm.trim();
+    navigate(query ? `/discover?q=${encodeURIComponent(query)}` : "/discover");
+  };
+
   return (
     <div className="workspace-desktop min-h-screen bg-background text-on-background">
       <header className="fixed left-0 right-0 top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-surface px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
@@ -115,6 +120,12 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
               placeholder="Search workspace..."
               value={searchTerm}
               onChange={(event) => handleSearchChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  submitGlobalSearch();
+                }
+              }}
               type="text"
             />
           </div>

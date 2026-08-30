@@ -16,6 +16,7 @@ import {
   transferDocumentOwnership,
   updateDocument,
   getAccessOverview,
+  getPermissionAudit,
   createPublicDocumentLink,
   getPublicDocument,
   listPublicDocumentLinks,
@@ -38,6 +39,7 @@ import {
 } from "../controllers/discoveryController";
 import { protect } from "../middleware/authMiddleware";
 import { writingAssistant } from "../controllers/aiController";
+import { deleteAttachment, listAttachments, uploadAttachment } from "../controllers/attachmentController";
 
 const router = express.Router();
 
@@ -56,6 +58,7 @@ router.post("/templates/:templateId/apply", protect, applyTemplate);
 router.post("/import", protect, importDocument);
 router.get("/analytics", protect, getAnalytics);
 router.get("/access/overview", protect, getAccessOverview);
+router.get("/access/audit", protect, getPermissionAudit);
 router.get("/activity/overview", protect, getWorkspaceActivityOverview);
 router.get("/invites", protect, getInviteManagement);
 router.get("/trash", protect, getTrashDocuments);
@@ -65,6 +68,9 @@ router.get("/public/:token", getPublicDocument);
 router.post("/", protect, createDocument);
 router.get("/", protect, getDocuments);
 router.get("/:id/export", protect, exportDocument);
+router.get("/:id/attachments", protect, listAttachments);
+router.post("/:id/attachments", protect, uploadAttachment);
+router.delete("/:id/attachments/:attachmentId", protect, deleteAttachment);
 router.get("/:id/tags", protect, getDocumentTags);
 router.put("/:id/tags", protect, updateDocumentTags);
 router.get("/:id/activity", protect, getDocumentActivity);

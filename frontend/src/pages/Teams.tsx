@@ -33,6 +33,15 @@ type AccessOverview = {
   }>;
 };
 
+type PermissionAuditEvent = {
+  id: string;
+  documentTitle: string;
+  actorEmail: string;
+  type: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 const TeamsPage = () => {
   const [searchParams] = useSearchParams();
   const docs = useDocStore((state) => state.docs);
@@ -40,15 +49,18 @@ const TeamsPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"owner" | "editor" | "commenter" | "viewer">("owner");
   const [accessOverview, setAccessOverview] = useState<AccessOverview | null>(null);
+  const [auditEvents, setAuditEvents] = useState<PermissionAuditEvent[]>([]);
 
   useEffect(() => {
     Promise.all([
       api.get<{ documents: DocItem[] }>("/docs"),
       api.get<AccessOverview>("/docs/access/overview"),
+      api.get<{ events: PermissionAuditEvent[] }>("/docs/access/audit"),
     ])
-      .then(([docsResponse, accessResponse]) => {
+      .then(([docsResponse, accessResponse, auditResponse]) => {
         setDocs(docsResponse.data.documents);
         setAccessOverview(accessResponse.data);
+        setAuditEvents(auditResponse.data.events || []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -171,6 +183,26 @@ const TeamsPage = () => {
               </table>
             </div>
           </section>
+
+          {auditEvents.length ? (
+            <section className="mb-8 rounded border border-white/5 bg-surface-container p-4">
+              <div className="mb-4 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Audit trail</p>
+                  <h2 className="mt-1 text-xl font-bold text-white">Permission activity</h2>
+                </div>
+                <span className="text-xs text-on-surface-variant">Latest {auditEvents.length}</span>
+              </div>
+              <div className="space-y-2">
+                {auditEvents.slice(0, 8).map((event) => (
+                  <div key={event.id} className="flex flex-col gap-1 border-b border-white/5 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-white">{event.type.replace(/^document_/, "").replace(/_/g, " ")} · {event.documentTitle}</span>
+                    <span className="text-on-surface-variant">{event.actorEmail} · {new Date(event.createdAt).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </>
       ) : null}
 

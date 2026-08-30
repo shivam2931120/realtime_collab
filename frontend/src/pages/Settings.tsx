@@ -1,6 +1,7 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import WorkspaceLayout from "../components/WorkspaceLayout";
+import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
 import { usePreferencesStore } from "../store/preferencesStore";
 
@@ -14,6 +15,15 @@ const SettingsPage = () => {
   const [avatarColor, setAvatarColor] = useState(profile.avatarColor);
   const [emailNotifications, setEmailNotifications] = useState(profile.emailNotifications);
   const [saved, setSaved] = useState(false);
+  const [health, setHealth] = useState<{ status: string; database?: { connected: boolean; latencyMs: number; code: string | null } } | null>(null);
+  const [healthLoading, setHealthLoading] = useState(true);
+
+  useEffect(() => {
+    api.get<typeof health>("/health")
+      .then((response) => setHealth(response.data))
+      .catch(() => setHealth({ status: "unavailable" }))
+      .finally(() => setHealthLoading(false));
+  }, []);
 
   const handleProfileSave = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,6 +39,34 @@ const SettingsPage = () => {
   const sections = useMemo(
     () =>
       [
+        {
+          key: "operations",
+          eyebrow: "Operations",
+          title: "System status",
+          body: (
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <span className="text-sm text-on-surface-variant">API service</span>
+                <span className={health?.status === "ok" ? "text-sm font-semibold text-primary" : "text-sm font-semibold text-error"}>
+                  {healthLoading ? "Checking" : health?.status === "ok" ? "Operational" : "Unavailable"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <span className="text-sm text-on-surface-variant">Database</span>
+                <span className={health?.database?.connected ? "text-sm font-semibold text-primary" : "text-sm font-semibold text-error"}>
+                  {healthLoading ? "Checking" : health?.database?.connected ? `${health.database.latencyMs} ms` : "Unavailable"}
+                </span>
+              </div>
+              <button type="button" className="emerald-primary-button" onClick={() => {
+                setHealthLoading(true);
+                api.get<typeof health>("/health").then((response) => setHealth(response.data)).catch(() => setHealth({ status: "unavailable" })).finally(() => setHealthLoading(false));
+              }}>
+                Recheck services
+              </button>
+            </div>
+          ),
+          searchText: "operations system status api database health services",
+        },
         {
           key: "account",
           eyebrow: "Account",

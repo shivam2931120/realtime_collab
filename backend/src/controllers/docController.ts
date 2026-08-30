@@ -708,6 +708,43 @@ export const getAccessOverview = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getPermissionAudit = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.auth?.userId) return res.status(401).json({ message: "Unauthorized" });
+    const { data: documents, error: documentError } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("owner_id", req.auth.userId)
+      .limit(500);
+    if (documentError) throw documentError;
+    const documentIds = (documents || []).map((document: any) => document.id);
+    if (!documentIds.length) return res.json({ events: [] });
+    const { data: events, error } = await supabase
+      .from("document_events")
+      .select("id, document_id, actor_id, event_type, metadata, created_at, documents(title)")
+      .in("document_id", documentIds)
+      .in("event_type", ["document_shared", "document_invite_cancelled", "document_ownership_transferred"])
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    return res.json({
+      events: (events || []).map((event: any) => ({
+        id: event.id,
+        documentId: event.document_id,
+        documentTitle: event.documents?.title || "Untitled document",
+        actorEmail: emailFromUserId(event.actor_id),
+        type: event.event_type,
+        metadata: event.metadata || {},
+        createdAt: event.created_at,
+      })),
+    });
+  } catch (error) {
+    console.error("Permission audit failed", error);
+    if (isMissingTableError(error)) return res.status(503).json({ message: "Database not initialized. Run supabase_schema.sql." });
+    return res.status(500).json({ message: "Permission audit load nahi hua" });
+  }
+};
+
 export const getWorkspaceActivityOverview = async (req: AuthRequest, res: Response) => {
   try {
     const auth = req.auth;

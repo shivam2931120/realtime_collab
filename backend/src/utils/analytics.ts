@@ -14,7 +14,9 @@ export type DocumentEventType =
   | "document_bulk_action"
   | "document_invite_cancelled"
   | "document_public_link_created"
-  | "document_public_link_revoked";
+  | "document_public_link_revoked"
+  | "document_attachment_uploaded"
+  | "document_attachment_deleted";
 
 export const trackDocumentEvent = async (payload: {
   documentId: string;
