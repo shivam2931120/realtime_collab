@@ -206,3 +206,62 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (min-width: 768px) {
   .nexus-titlebar { min-height: 48px; }
 }
+
+/* Dark blueprint variant for the authenticated product surfaces. */
+body, #root { background: #101b28; color: #eef1f5; }
+.workspace-desktop {
+  background-color: #101b28 !important;
+  color: #eef1f5 !important;
+  background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(211,218,226,.12) 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, rgba(211,218,226,.12) 23px 24px) !important;
+}
+.workspace-desktop [class*="bg-background"],
+.workspace-desktop [class*="bg-slate-950"],
+.workspace-desktop [class*="bg-surface"],
+.workspace-desktop [class*="bg-[#0e0e0e]"],
+.workspace-desktop [class*="bg-[#131313]"],
+.workspace-desktop [class*="bg-[#201f1f]"],
+.workspace-desktop [class*="bg-[#1c1b1b]"] {
+  background-color: #101b28 !important;
+  color: #eef1f5 !important;
+}
+.workspace-desktop [class*="bg-surface-container-high"],
+.workspace-desktop [class*="bg-surface-container-highest"] {
+  background-color: #5a6675 !important;
+}
+.workspace-desktop [class*="bg-white"] { background-color: #101b28 !important; color: #eef1f5 !important; }
+.workspace-desktop [class*="border-white"],
+.workspace-desktop [class*="border-slate"],
+.workspace-desktop [class*="border-[#"],
+.workspace-desktop [class*="border-black"] { border-color: #d3dae2 !important; }
+.workspace-desktop [class*="text-white"],
+.workspace-desktop [class*="text-on-surface"],
+.workspace-desktop [class*="text-slate-"],
+.workspace-desktop [class*="text-[#a3a3a3]"],
+.workspace-desktop [class*="text-[#bbcabf]"],
+.workspace-desktop [class*="text-[#737373]"],
+.workspace-desktop [class*="text-[#131313]"],
+.workspace-desktop [class*="text-[#404040]"] { color: #eef1f5 !important; }
+.workspace-desktop [class*="text-primary"], .workspace-desktop [class*="text-[#10b981]"], .workspace-desktop [class*="text-[#047857]"] { color: #e4572e !important; }
+.workspace-desktop [class~="bg-primary"], .workspace-desktop [class~="bg-primary-container"] { background-color: #e4572e !important; color: #ffffff !important; }
+.workspace-desktop [class*="bg-primary/"] { background-color: rgba(228,87,46,.18) !important; }
+.workspace-desktop .emerald-muted-button { background: #101b28 !important; color: #eef1f5 !important; border-color: #d3dae2 !important; }
+.workspace-desktop .emerald-primary-button { background: #e4572e !important; color: #ffffff !important; border-color: #e4572e !important; }
+.workspace-desktop input, .workspace-desktop textarea, .workspace-desktop select { background-color: #101b28 !important; color: #eef1f5 !important; border-color: #d3dae2 !important; }
+.workspace-desktop ::placeholder { color: #5a6675 !important; }
+
+.nexus-landing { background-color: #101b28; color: #eef1f5; background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(211,218,226,.12) 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, rgba(211,218,226,.12) 23px 24px); }
+.nexus-nav { background: #101b28; border-color: #5a6675; }
+.nexus-brand, .nexus-nav-links a, .nexus-signin, .nexus-hero h1, .nexus-titlebar strong, .nexus-stage.running, .nexus-rail-footer strong, .nexus-receipt dd, .nexus-stat strong { color: #eef1f5; }
+.nexus-monogram { background: #eef1f5; color: #101b28; }
+.nexus-signin, .nexus-rule, .nexus-dimension::before, .nexus-dimension::after, .nexus-dimension span::before, .nexus-titlebar, .nexus-mockup, .nexus-rail, .nexus-stage.running, .nexus-rail-footer, .nexus-log, .nexus-log-row, .nexus-receipt, .nexus-stats, .nexus-stat + .nexus-stat { border-color: #5a6675; }
+.nexus-mockup { background: #101b28; box-shadow: 0 12px 28px rgba(0,0,0,.2); }
+.nexus-titlebar, .nexus-mainpane, .nexus-stage, .nexus-log, .nexus-receipt, .nexus-stat { color: #eef1f5; }
+.nexus-rail, .nexus-log-row:first-child, .nexus-receipt { background: #101b28; }
+.nexus-command { background: #5a6675; border-color: #d3dae2; color: #ffffff; }
+.nexus-point b, .nexus-glyph { background: #101b28; border-color: #d3dae2; }
+.nexus-log-row { border-top-color: #5a6675; }
+.nexus-log-row:first-child { background: #5a6675; color: #eef1f5; }
+.nexus-token { background: #5a6675; color: #ffffff; }
+.nexus-receipt::before { border-color: #d3dae2; }
+.nexus-receipt dt, .nexus-label, .nexus-version, .nexus-stat-caption, .nexus-titlebar, .nexus-stage, .nexus-point { color: #d3dae2; }
+.nexus-stamp { color: #e4572e; border-color: #e4572e; }

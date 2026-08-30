@@ -99,7 +99,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   };
 
   return (
-    <div className="min-h-screen bg-background text-on-background">
+    <div className="workspace-desktop min-h-screen bg-background text-on-background">
       <header className="fixed left-0 right-0 top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-surface px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
         <div className="flex items-center gap-3 md:gap-8">
           <div className="flex items-center gap-3">

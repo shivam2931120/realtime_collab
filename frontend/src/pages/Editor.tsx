@@ -2005,7 +2005,7 @@ const EditorPage = () => {
   }
 
   return (
-    <div className="bg-surface text-on-surface selection:bg-primary/30">
+    <div className="workspace-desktop bg-surface text-on-surface selection:bg-primary/30">
       <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-[#131313] px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3 md:gap-6">
           <span className="shrink-0 text-base font-bold uppercase tracking-tighter text-white sm:text-xl">Editorial</span>
