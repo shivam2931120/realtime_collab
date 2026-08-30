@@ -6,9 +6,9 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  --os-black: #000000;
-  --os-white: #ffffff;
+  color-scheme: dark;
+  --os-black: #ffffff;
+  --os-white: #000000;
   --os-bezel: #282725;
   --os-orange: #f37725;
   --os-blue: #3685c5;
@@ -71,6 +71,25 @@ body {
   @apply inline-flex items-center justify-center gap-2 rounded border border-black bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60;
 }
 
+/* Components still use the original light utility names. Keep their meaning
+   consistent with the dark Editorial surface without changing each page. */
+[class~="bg-white"],
+[class*="bg-white/"] {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+[class~="text-black"],
+[class*="text-[#131313]"],
+[class*="text-[#404040]"],
+[class*="text-[#23322b]"] {
+  color: #ffffff !important;
+}
+
+[class~="border-black"] {
+  border-color: #ffffff !important;
+}
+
 button,
 input,
 textarea,
@@ -99,14 +118,14 @@ a:focus-visible {
 [class*="bg-[#131313]"],
 [class*="bg-[#201f1f]"],
 [class*="bg-[#1c1b1b]"] {
-  background-color: var(--os-white) !important;
-  color: var(--os-black) !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
 }
 
 [class*="border-white"],
 [class*="border-slate"],
 [class*="border-[#"] {
-  border-color: var(--os-black) !important;
+  border-color: #ffffff !important;
 }
 
 [class*="text-white"],
@@ -115,16 +134,16 @@ a:focus-visible {
 [class*="text-[#bbcabf]"],
 [class*="text-[#737373]"],
 [class*="text-slate-"] {
-  color: var(--os-black) !important;
+  color: #ffffff !important;
 }
 
 [class*="text-primary"] {
-  color: var(--os-black) !important;
+  color: #ffffff !important;
 }
 
 [class*="bg-primary"] {
-  background-color: var(--os-black) !important;
-  color: var(--os-white) !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 [class*="bg-white/"],
@@ -132,8 +151,8 @@ a:focus-visible {
 [class*="bg-primary/"],
 [class*="bg-secondary/"],
 [class*="bg-error/"] {
-  background-color: var(--os-white) !important;
-  color: var(--os-black) !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
 }
 
 [class*="text-[#131313]"],
@@ -143,15 +162,15 @@ a:focus-visible {
 [class*="text-[#10b981]"],
 [class*="text-[#23322b]"],
 [class*="text-primary/"] {
-  color: var(--os-black) !important;
+  color: #ffffff !important;
 }
 
 [class*="border-primary/"],
 [class*="border-secondary/"],
 [class*="border-error/"],
 [class*="ring-"] {
-  border-color: var(--os-black) !important;
-  --tw-ring-color: var(--os-black) !important;
+  border-color: #ffffff !important;
+  --tw-ring-color: #ffffff !important;
 }
 
 [class*="backdrop-"] {
@@ -168,8 +187,8 @@ a:focus-visible {
 
 /* Desktop pattern and OS title bars. */
 .workspace-desktop {
-  background-color: var(--os-white);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23000' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
+  background-color: #000000;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23fff' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
 }
 
 .os-titlebar {
@@ -187,9 +206,9 @@ a:focus-visible {
 }
 
 ::-webkit-scrollbar-track {
-  background-color: var(--os-white);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23000' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
-  border: 1px solid var(--os-black);
+  background-color: #000000;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23fff' d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E");
+  border: 1px solid #ffffff;
 }
 
 ::-webkit-scrollbar-thumb {
