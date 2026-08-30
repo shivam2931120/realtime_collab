@@ -2005,10 +2005,10 @@ const EditorPage = () => {
   }
 
   return (
-    <div className="workspace-desktop min-h-screen text-on-surface selection:bg-primary/30">
-      <header className="os-titlebar sticky top-4 z-50 mx-4 flex h-8 items-center justify-between border-b border-black bg-white px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
+    <div className="bg-surface text-on-surface selection:bg-primary/30">
+      <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-[#131313] px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3 md:gap-6">
-          <span className="shrink-0 text-base font-bold uppercase tracking-tighter text-black sm:text-xl">Editorial</span>
+          <span className="shrink-0 text-base font-bold uppercase tracking-tighter text-white sm:text-xl">Editorial</span>
           <div className="relative flex items-center gap-2 text-[#a3a3a3]">
             <button
               type="button"
@@ -2080,9 +2080,9 @@ const EditorPage = () => {
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-2.5rem)]">
+      <div className="flex min-h-[calc(100vh-3.5rem)]">
         <aside
-          className={`fixed bottom-4 left-4 top-4 z-40 hidden flex-col border-r border-black bg-white pb-4 pt-12 transition-[width] duration-200 lg:flex ${
+          className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 transition-[width] duration-200 lg:flex ${
             sidebarCollapsed ? "w-20" : "w-64"
           }`}
         >
@@ -2093,7 +2093,7 @@ const EditorPage = () => {
               </div>
               {!sidebarCollapsed ? (
                 <div className="min-w-0">
-                  <div className="text-lg font-bold leading-none text-black">Editorial</div>
+                  <div className="text-lg font-bold leading-none text-white">Arena</div>
                 </div>
               ) : null}
             </div>

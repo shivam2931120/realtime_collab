@@ -99,11 +99,11 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   };
 
   return (
-    <div className="workspace-desktop min-h-screen bg-background text-on-background">
-      <header className="os-titlebar fixed left-4 right-4 top-4 z-50 flex h-8 items-center justify-between border-b border-black bg-white px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
+    <div className="min-h-screen bg-background text-on-background">
+      <header className="fixed left-0 right-0 top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-surface px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
         <div className="flex items-center gap-3 md:gap-8">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Editorial logo" className="h-5 object-contain sm:h-6" />
+            <img src="/logo.png" alt="Editorial logo" className="h-7 object-contain sm:h-8" />
             <span className="hidden text-base font-bold uppercase tracking-tighter text-white min-[360px]:inline sm:text-xl">
               Editorial
             </span>
@@ -159,9 +159,9 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
         </div>
       </header>
 
-      <div className="flex pt-8">
+      <div className="flex pt-14">
         <aside
-          className={`fixed bottom-4 left-4 top-4 z-40 hidden flex-col border-r border-black bg-white pb-4 pt-12 transition-[width] duration-200 md:flex ${
+          className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 transition-[width] duration-200 md:flex ${
             sidebarCollapsed ? "w-20" : "w-64"
           }`}
         >
@@ -207,7 +207,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
                     sidebarCollapsed ? "justify-center" : "gap-3"
                   } ${
                     isActive
-                      ? "border-r-2 border-black bg-black text-white"
+                      ? "border-r-2 border-primary-container bg-[#1c1b1b] text-primary-container"
                       : `text-[#a3a3a3] hover:bg-[#1c1b1b] hover:text-white ${sidebarCollapsed ? "" : "hover:translate-x-1"}`
                   }`
                 }
@@ -244,7 +244,7 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
           {children}
         </main>
 
-        <nav className="fixed bottom-4 left-4 right-4 z-50 grid grid-cols-5 border-t border-black bg-white px-1.5 pb-[env(safe-area-inset-bottom)] pt-1.5 md:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-white/10 bg-[#0e0e0e]/95 px-1.5 pb-[env(safe-area-inset-bottom)] pt-1.5 shadow-2xl backdrop-blur md:hidden">
           {mobileNavItems.map((item) => (
             <NavLink
               key={item.label}

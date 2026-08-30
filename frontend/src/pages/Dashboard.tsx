@@ -1262,7 +1262,7 @@ const DashboardPage = () => {
                   onClick={() => navigate(`/editor/${document.id}`)}
                   className="w-full overflow-hidden rounded border border-white/5 bg-surface-container text-left transition hover:bg-surface-container-high"
                 >
-                  <div className={`${viewMode === "grid" ? "h-32" : "h-2"} bg-black`} />
+                  <div className={`${viewMode === "grid" ? "h-32" : "h-2"} bg-gradient-to-br from-surface-container-high via-[#23322b] to-surface-container-low opacity-80`} />
                   <div className="p-4">
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <h3 className="min-w-0 break-words pr-8 text-lg font-bold tracking-tight text-white md:pr-0">

@@ -100,7 +100,7 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black px-4">
       <div className="w-full max-w-md rounded border border-white/10 bg-surface-container p-8 shadow-2xl">
         <h1 className="text-2xl font-bold text-white">{submitLabel}</h1>
         <p className="mt-2 text-sm text-on-surface-variant">{helperCopy}</p>
