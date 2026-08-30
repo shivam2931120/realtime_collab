@@ -7,17 +7,13 @@ import "./index.css";
 
 const muiTheme = createTheme({
   palette: {
-    mode: "dark",
-    primary: {
-      main: "#10b981",
-    },
-    background: {
-      default: "#0f0f0f",
-      paper: "#161616",
-    },
+    mode: "light",
+    primary: { main: "#e4572e" },
+    background: { default: "#eef1f5", paper: "#ffffff" },
+    text: { primary: "#101b28", secondary: "#5a6675" },
   },
   typography: {
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+    fontFamily: "IBM Plex Sans, Arial, sans-serif",
   },
 });
 

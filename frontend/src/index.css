@@ -1,32 +1,28 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
+:root { color-scheme: light; }
+
+* { box-sizing: border-box; }
+
+html, body, #root { min-height: 100%; }
 
 body {
-  @apply bg-background text-on-background antialiased;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  margin: 0;
+  background: #eef1f5;
+  color: #101b28;
+  font-family: "IBM Plex Sans", Arial, sans-serif;
   overflow-x: hidden;
 }
 
-#root {
-  min-height: 100vh;
-  max-width: 100%;
-  overflow-x: hidden;
+button, input, textarea, select {
+  font: inherit;
 }
+
+button, a { -webkit-tap-highlight-color: transparent; }
 
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";
@@ -39,202 +35,174 @@ body {
   letter-spacing: normal;
   text-transform: none;
   white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
   -webkit-font-smoothing: antialiased;
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
-.glass-panel {
-  background: rgba(32, 31, 31, 0.6);
-  backdrop-filter: blur(12px);
+.glass-panel, .editorial-panel {
+  background: #ffffff;
+  border: 1px solid #d3dae2;
+  backdrop-filter: none;
+  box-shadow: none;
 }
 
-.emerald-card {
-  @apply rounded border border-white/5 bg-surface-container shadow-soft;
+.emerald-card { @apply border border-outline bg-white shadow-none; }
+.emerald-input { @apply w-full border border-outline bg-white px-4 py-3 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary; }
+.emerald-muted-button { @apply flex items-center justify-center gap-2 border border-outline bg-white px-4 py-2 text-sm font-medium text-on-surface transition hover:bg-[#e4e9ef]; }
+.emerald-primary-button { @apply inline-flex items-center justify-center gap-2 border border-primary bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-[#101b28] disabled:cursor-not-allowed disabled:opacity-60; }
+
+/* Shared application surfaces follow the blueprint sheet palette. */
+[class*="bg-slate-950"], [class*="bg-background"] { background-color: #eef1f5 !important; color: #101b28 !important; }
+[class*="bg-surface"], [class*="bg-[#0e0e0e]"], [class*="bg-[#131313]"], [class*="bg-[#201f1f]"], [class*="bg-[#1c1b1b]"] { background-color: #ffffff !important; color: #101b28 !important; }
+[class*="bg-surface-container-high"], [class*="bg-surface-container-highest"] { background-color: #e4e9ef !important; }
+[class*="border-white"], [class*="border-slate"], [class*="border-[#"], [class*="border-black"] { border-color: #d3dae2 !important; }
+[class*="text-white"], [class*="text-on-"], [class*="text-slate-"], [class*="text-[#a3a3a3]"], [class*="text-[#bbcabf]"], [class*="text-[#737373]"] { color: #101b28 !important; }
+[class*="text-primary"], [class*="text-[#10b981]"], [class*="text-[#047857]"] { color: #e4572e !important; }
+[class*="bg-primary"] { background-color: #e4572e !important; color: #ffffff !important; }
+[class*="shadow-"] { box-shadow: none !important; }
+[class*="rounded"] { border-radius: 0 !important; }
+
+.workspace-desktop {
+  min-height: 100vh;
+  background-color: #eef1f5;
+  background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(211,218,226,.35) 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, rgba(211,218,226,.35) 23px 24px);
 }
 
-.emerald-input {
-  @apply w-full rounded border-0 bg-surface-container-highest/50 px-4 py-3 text-sm text-white outline-none transition placeholder:text-outline/50 focus:ring-1 focus:ring-primary;
+.editorial-editor { min-height: 900px; outline: none; overflow-wrap: anywhere; font-family: "IBM Plex Sans", Arial, sans-serif; }
+.editorial-editor .ProseMirror { min-height: 900px; outline: none; overflow-wrap: anywhere; }
+.editorial-editor h1 { @apply mb-8 text-4xl font-extrabold tracking-tight text-[#101b28]; }
+.editorial-editor h2 { @apply pb-0 pt-6 text-2xl font-bold text-[#101b28]; }
+.editorial-editor h3 { @apply pb-0 pt-4 text-xl font-bold text-[#101b28]; }
+.editorial-editor p, .editorial-editor ul, .editorial-editor ol { @apply mb-4 text-lg leading-relaxed text-[#5a6675]; }
+.editorial-editor ul { list-style: disc; }
+.editorial-editor ol { list-style: decimal; }
+.editorial-editor blockquote { @apply my-10 border-l-4 border-primary bg-[#f8fafc] py-2 pl-6 italic text-[#101b28]; }
+.editorial-editor a { @apply break-words font-medium text-primary underline underline-offset-4; }
+.editorial-editor code { @apply border border-outline bg-[#e4e9ef] px-1.5 py-0.5 text-[0.95em] text-[#101b28]; }
+.editorial-editor pre { @apply my-6 overflow-x-auto border border-[#101b28] bg-[#101b28] p-5 text-sm leading-relaxed text-white; }
+.editorial-editor pre code { @apply border-0 bg-transparent p-0 text-white; }
+.editorial-editor img, .editorial-editor iframe { @apply my-6 max-w-full border border-outline; }
+.editorial-editor hr { @apply my-10 border-0 border-t border-outline; }
+.editorial-editor-toolbar button { @apply shrink-0 border border-transparent p-1 text-on-surface transition hover:border-outline hover:bg-[#e4e9ef] sm:p-1.5; }
+.editorial-editor-toolbar button.active { @apply border-primary bg-[#e4e9ef] text-primary; }
+
+/* Nexus industrial blueprint landing page. */
+.nexus-landing { min-height: 100vh; background-color: #eef1f5; color: #101b28; background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(211,218,226,.35) 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, rgba(211,218,226,.35) 23px 24px); }
+.nexus-container { width: min(100% - 48px, 1320px); margin: 0 auto; }
+.nexus-mono { font-family: "IBM Plex Mono", monospace; }
+.nexus-nav { min-height: 72px; border-bottom: 1px solid #d3dae2; background: #eef1f5; }
+.nexus-nav-inner { min-height: 72px; display: flex; align-items: center; gap: 40px; }
+.nexus-brand { display: flex; align-items: center; gap: 10px; color: #101b28; text-decoration: none; white-space: nowrap; }
+.nexus-monogram { display: grid; place-items: center; width: 28px; height: 28px; background: #101b28; color: #fff; font: 500 16px/1 "IBM Plex Mono", monospace; }
+.nexus-wordmark { font-size: 15px; font-weight: 500; }
+.nexus-nav-links { display: flex; gap: 26px; margin-right: auto; }
+.nexus-nav-links a, .nexus-signin { color: #101b28; font-size: 14px; font-weight: 500; text-decoration: none; }
+.nexus-nav-links a:hover, .nexus-signin:hover { color: #e4572e; }
+.nexus-nav-actions { display: flex; align-items: center; gap: 16px; }
+.nexus-version { color: #5a6675; font: 11px/1 "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; }
+.nexus-version strong { color: #e4572e; font-weight: 500; }
+.nexus-signin { border: 1px solid #d3dae2; padding: 10px 14px; }
+.nexus-button { display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e4572e; background: #e4572e; color: #fff; padding: 12px 16px; font: 500 13px/1 "IBM Plex Mono", monospace; text-decoration: none; cursor: pointer; }
+.nexus-button:hover { background: #101b28; border-color: #101b28; }
+.nexus-hero { display: grid; grid-template-columns: 58% 42%; gap: 56px; padding: 92px 0 76px; }
+.nexus-eyebrow, .nexus-note, .nexus-label, .nexus-dimension, .nexus-stat-caption { font: 500 11px/1.4 "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; }
+.nexus-eyebrow { display: flex; align-items: center; gap: 10px; color: #5a6675; }
+.nexus-eyebrow i { width: 6px; height: 6px; background: #e4572e; }
+.nexus-hero h1 { max-width: 760px; margin: 24px 0 0; color: #101b28; font: 700 76px/1.02 "Archivo", Arial, sans-serif; letter-spacing: -3px; }
+.nexus-hero-side { padding-top: 2px; }
+.nexus-rule { height: 1px; background: #d3dae2; margin-bottom: 28px; }
+.nexus-subtitle { max-width: 380px; margin: 0; color: #5a6675; font: 400 17px/1.55 "IBM Plex Sans", Arial, sans-serif; }
+.nexus-cta { display: flex; align-items: stretch; margin-top: 28px; }
+.nexus-command { display: inline-flex; align-items: center; gap: 18px; padding: 0 14px; border: 1px solid #d3dae2; border-left: 0; background: #e4e9ef; color: #101b28; font: 400 13px/1 "IBM Plex Mono", monospace; }
+.nexus-command button { display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: #5a6675; cursor: pointer; }
+.nexus-note { margin-top: 16px; color: #5a6675; }
+.nexus-mockup-wrap { position: relative; padding-top: 18px; }
+.nexus-dimension { display: flex; align-items: center; gap: 10px; color: #5a6675; }
+.nexus-dimension::before, .nexus-dimension::after { content: ""; height: 9px; width: 1px; background: #d3dae2; }
+.nexus-dimension span { flex: 1; display: flex; align-items: center; gap: 10px; }
+.nexus-dimension span::before { content: ""; flex: 1; height: 1px; background: #d3dae2; }
+.nexus-mockup { position: relative; margin-top: 10px; border: 1px solid #d3dae2; background: #fff; box-shadow: 0 12px 28px rgba(16,27,40,.08); }
+.nexus-corner::before, .nexus-corner::after { content: ""; position: absolute; width: 8px; height: 8px; border-color: #d3dae2; border-style: solid; }
+.nexus-corner::before { left: -5px; top: -5px; border-width: 1px 0 0 1px; }
+.nexus-corner::after { right: -5px; bottom: -5px; border-width: 0 1px 1px 0; }
+.nexus-corner.second::before { right: -5px; left: auto; top: -5px; border-width: 1px 1px 0 0; }
+.nexus-corner.second::after { left: -5px; right: auto; bottom: -5px; border-width: 0 0 1px 1px; }
+.nexus-titlebar { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 18px; border-bottom: 1px solid #d3dae2; color: #5a6675; font: 400 12px/1 "IBM Plex Mono", monospace; }
+.nexus-titlebar strong { color: #101b28; font-weight: 500; }
+.nexus-squares { display: flex; gap: 4px; }
+.nexus-squares i { width: 7px; height: 7px; border: 1px solid #101b28; }
+.nexus-mockup-body { display: grid; grid-template-columns: 208px 1fr; min-height: 390px; }
+.nexus-rail { display: flex; flex-direction: column; border-right: 1px solid #d3dae2; background: #f8fafc; }
+.nexus-stage { position: relative; display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 10px; min-height: 54px; padding: 0 14px; color: #5a6675; font: 400 12px/1 "IBM Plex Mono", monospace; }
+.nexus-stage.running { border-left: 3px solid #e4572e; padding-left: 11px; color: #101b28; }
+.nexus-stage.pending { color: #d3dae2; }
+.nexus-glyph { width: 12px; height: 12px; border: 1px solid #d3dae2; background: #fff; }
+.nexus-stage.running .nexus-glyph { border-color: #e4572e; background: #e4572e; }
+.nexus-stage.pending .nexus-glyph { border-style: dashed; background: transparent; }
+.nexus-stage time { color: inherit; }
+.nexus-rail-footer { margin-top: auto; padding: 20px 14px; border-top: 1px solid #d3dae2; }
+.nexus-label { display: block; color: #5a6675; }
+.nexus-rail-footer strong { display: block; margin-top: 8px; font: 500 12px/1 "IBM Plex Mono", monospace; }
+.nexus-mainpane { min-width: 0; padding: 30px; }
+.nexus-timeline { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); }
+.nexus-timeline::before { content: ""; position: absolute; top: 8px; right: 0; left: 0; height: 1px; background: #d3dae2; }
+.nexus-point { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; color: #5a6675; font: 400 11px/1 "IBM Plex Mono", monospace; }
+.nexus-point b { width: 12px; height: 12px; border: 1px solid #d3dae2; background: #fff; }
+.nexus-point.running b { width: 16px; height: 16px; border-color: #e4572e; background: #e4572e; }
+.nexus-point.running span { color: #e4572e; }
+.nexus-point.pending b { border-style: dashed; background: #fff; }
+.nexus-point.pending span { color: #d3dae2; }
+.nexus-log { margin-top: 32px; border: 1px solid #d3dae2; color: #101b28; font: 400 12px/1.3 "IBM Plex Mono", monospace; }
+.nexus-log-row { display: grid; grid-template-columns: 130px 90px minmax(0,1fr) 100px; gap: 12px; align-items: center; min-height: 38px; padding: 0 12px; border-top: 1px solid #e4e9ef; }
+.nexus-log-row:first-child { border-top: 0; background: #f8fafc; color: #5a6675; font-size: 11px; text-transform: uppercase; }
+.nexus-log-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexus-log-row > :last-child { text-align: right; }
+.nexus-token { display: inline-block; justify-self: end; padding: 4px 6px; background: #e4e9ef; color: #101b28; }
+.nexus-token.pass { background: #e4572e; color: #fff; }
+.nexus-receipt { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)) auto; gap: 20px; align-items: center; padding: 20px 14px; border: 1px solid #d3dae2; border-top: 0; background: #f8fafc; }
+.nexus-receipt::before { content: ""; position: absolute; top: -1px; right: 0; left: 0; border-top: 1px dashed #5a6675; }
+.nexus-receipt dl { min-width: 0; margin: 0; }
+.nexus-receipt dt { color: #5a6675; font: 500 10px/1.4 "IBM Plex Mono", monospace; letter-spacing: .14em; }
+.nexus-receipt dd { margin: 7px 0 0; overflow-wrap: anywhere; color: #101b28; font: 400 12px/1.3 "IBM Plex Mono", monospace; }
+.nexus-stamp { justify-self: end; padding: 8px 10px; border: 2px solid #e4572e; color: #e4572e; font: 500 12px/1 "IBM Plex Mono", monospace; letter-spacing: .14em; transform: rotate(-3deg); }
+.nexus-stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #d3dae2; border-bottom: 1px solid #d3dae2; }
+.nexus-stat { padding: 38px 0; }
+.nexus-stat + .nexus-stat { padding-left: 32px; border-left: 1px solid #d3dae2; }
+.nexus-stat strong { display: block; color: #101b28; font: 700 56px/1 "Archivo", Arial, sans-serif; letter-spacing: -2px; }
+.nexus-stat strong::after { content: ""; display: block; width: 32px; height: 2px; margin-top: 14px; background: #e4572e; }
+.nexus-stat-caption { display: block; margin-top: 12px; color: #5a6675; }
+.nexus-ticker { overflow: hidden; background: #101b28; color: #eef1f5; }
+.nexus-ticker-track { display: flex; width: max-content; animation: nexus-marquee 28s linear infinite; }
+.nexus-ticker-list { display: flex; align-items: center; gap: 28px; min-width: 50vw; padding: 16px 28px; font: 400 11px/1 "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+.nexus-ticker-list i { width: 6px; height: 6px; background: #e4572e; }
+@keyframes nexus-marquee { to { transform: translateX(-50%); } }
+
+@media (max-width: 767px) {
+  .nexus-container { width: min(100% - 28px, 1320px); }
+  .nexus-nav-inner { gap: 12px; }
+  .nexus-nav-links, .nexus-version, .nexus-signin { display: none; }
+  .nexus-nav-actions { margin-left: auto; }
+  .nexus-nav-actions .nexus-button { padding: 10px 12px; }
+  .nexus-hero { grid-template-columns: 1fr; gap: 44px; padding: 54px 0 46px; }
+  .nexus-hero h1 { font-size: clamp(46px, 13vw, 64px); letter-spacing: -1.2px; }
+  .nexus-cta { flex-direction: column; }
+  .nexus-command { justify-content: space-between; min-height: 44px; border-left: 1px solid #d3dae2; }
+  .nexus-mockup-body { display: flex; flex-direction: column; min-height: 0; }
+  .nexus-rail { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid #d3dae2; }
+  .nexus-stage { min-width: 130px; min-height: 58px; }
+  .nexus-rail-footer { display: none; }
+  .nexus-mainpane { padding: 22px 14px; }
+  .nexus-timeline { min-width: 600px; }
+  .nexus-timeline-wrap { overflow-x: auto; }
+  .nexus-log-row { grid-template-columns: 90px minmax(0,1fr) 70px; gap: 8px; }
+  .nexus-log-row > :first-child { display: none; }
+  .nexus-receipt { grid-template-columns: 1fr; gap: 16px; }
+  .nexus-stamp { justify-self: start; }
+  .nexus-stats { grid-template-columns: 1fr; }
+  .nexus-stat, .nexus-stat + .nexus-stat { padding: 26px 0; border-left: 0; }
+  .nexus-stat + .nexus-stat { border-top: 1px solid #d3dae2; }
 }
 
-.emerald-muted-button {
-  @apply flex items-center justify-center gap-2 rounded border border-white/5 bg-surface-container-low px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high;
-}
-
-.emerald-primary-button {
-  @apply inline-flex items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-bold text-on-primary transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60;
-}
-
-.editorial-editor {
-  min-height: 900px;
-  outline: none;
-  overflow-wrap: anywhere;
-}
-
-.editorial-editor .ProseMirror {
-  min-height: 900px;
-  outline: none;
-  overflow-wrap: anywhere;
-}
-
-.editorial-editor h1 {
-  @apply mb-8 text-4xl font-extrabold tracking-tight text-[#131313];
-}
-
-.editorial-editor h2 {
-  @apply pb-0 pt-6 text-2xl font-bold text-[#131313];
-}
-
-.editorial-editor h3 {
-  @apply pb-0 pt-4 text-xl font-bold text-[#131313];
-}
-
-.editorial-editor p {
-  @apply mb-4 text-lg leading-relaxed text-[#404040];
-}
-
-.editorial-editor ul,
-.editorial-editor ol {
-  @apply mb-5 ml-6 text-lg leading-relaxed text-[#404040];
-}
-
-.editorial-editor ul {
-  list-style: disc;
-}
-
-.editorial-editor ol {
-  list-style: decimal;
-}
-
-.editorial-editor blockquote {
-  @apply my-10 border-l-4 border-primary bg-black/[0.03] py-2 pl-6 italic text-[#131313];
-}
-
-.editorial-editor a {
-  @apply break-words font-semibold text-[#047857] underline underline-offset-4;
-}
-
-.editorial-editor code {
-  @apply rounded bg-black/5 px-1.5 py-0.5 text-[0.95em] text-[#131313];
-}
-
-.editorial-editor pre {
-  @apply my-6 overflow-x-auto rounded bg-[#131313] p-5 text-sm leading-relaxed text-white;
-}
-
-.editorial-editor pre code {
-  @apply bg-transparent p-0 text-white;
-}
-
-.editorial-editor mark {
-  @apply rounded px-1;
-}
-
-.editorial-editor img {
-  @apply my-6 max-w-full rounded border border-black/10;
-}
-
-.editorial-editor iframe {
-  @apply my-6 aspect-video w-full rounded border border-black/10;
-}
-
-.editorial-editor hr {
-  @apply my-10 border-0 border-t border-black/10;
-}
-
-.editorial-editor table {
-  @apply my-8 w-full border-collapse overflow-hidden rounded text-left text-sm text-[#404040];
-}
-
-.editorial-editor th,
-.editorial-editor td {
-  @apply border border-black/10 px-4 py-3 align-top;
-}
-
-.editorial-editor th {
-  @apply bg-black/[0.04] font-bold text-[#131313];
-}
-
-.editorial-editor ul[data-type="taskList"] {
-  @apply ml-0 list-none;
-}
-
-.editorial-editor ul[data-type="taskList"] li {
-  @apply flex items-start gap-3;
-}
-
-.editorial-editor ul[data-type="taskList"] li > label {
-  @apply mt-1;
-}
-
-.editorial-editor ul[data-type="taskList"] input[type="checkbox"] {
-  @apply h-4 w-4 accent-primary;
-}
-
-.editorial-editor p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  color: #737373;
-  float: left;
-  height: 0;
-  pointer-events: none;
-}
-
-.editorial-editor-toolbar button {
-  @apply shrink-0 rounded p-1 text-white transition hover:bg-white/10 sm:p-1.5;
-}
-
-.editorial-editor-toolbar button.active {
-  @apply bg-primary/15 text-primary;
-}
-
-.editorial-editor-toolbar button:disabled {
-  @apply cursor-not-allowed opacity-40 hover:bg-transparent;
-}
-
-.editorial-panel {
-  background: rgba(32, 31, 31, 0.6);
-  backdrop-filter: blur(12px);
-}
-
-@media (max-width: 640px) {
-  .editorial-editor,
-  .editorial-editor .ProseMirror {
-    min-height: 620px;
-  }
-
-  .editorial-editor h1 {
-    @apply mb-5 text-3xl;
-  }
-
-  .editorial-editor h2 {
-    @apply pt-5 text-xl;
-  }
-
-  .editorial-editor h3 {
-    @apply pt-3 text-lg;
-  }
-
-  .editorial-editor p,
-  .editorial-editor ul,
-  .editorial-editor ol {
-    @apply text-base leading-7;
-  }
-
-  .editorial-editor blockquote {
-    @apply my-6 pl-4;
-  }
-
-  .editorial-editor pre {
-    @apply p-4 text-xs;
-  }
-
-  .editorial-editor table {
-    @apply block max-w-full overflow-x-auto whitespace-nowrap text-xs;
-  }
-
-  .editorial-editor th,
-  .editorial-editor td {
-    @apply px-3 py-2;
-  }
+@media (min-width: 768px) {
+  .nexus-titlebar { min-height: 48px; }
 }
