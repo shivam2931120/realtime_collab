@@ -24,6 +24,8 @@ const navItems = [
   { to: "/drafts", icon: "description", label: "Drafts" },
   { to: "/collections", icon: "folder_open", label: "Collections" },
   { to: "/teams", icon: "groups", label: "Team" },
+  { to: "/calendar", icon: "calendar_month", label: "Calendar" },
+  { to: "/integrations", icon: "webhook", label: "Integrations" },
   { to: "/settings", icon: "settings", label: "Settings" },
 ];
 

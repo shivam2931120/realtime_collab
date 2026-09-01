@@ -40,6 +40,7 @@ import {
 import { protect } from "../middleware/authMiddleware";
 import { writingAssistant } from "../controllers/aiController";
 import { deleteAttachment, listAttachments, uploadAttachment } from "../controllers/attachmentController";
+import { createDeadline, createSuggestion, decideSuggestion, deleteDeadline, listDeadlines, listSuggestions, updateDeadline } from "../controllers/workflowController";
 
 const router = express.Router();
 
@@ -71,6 +72,13 @@ router.get("/:id/export", protect, exportDocument);
 router.get("/:id/attachments", protect, listAttachments);
 router.post("/:id/attachments", protect, uploadAttachment);
 router.delete("/:id/attachments/:attachmentId", protect, deleteAttachment);
+router.get("/:id/deadlines", protect, listDeadlines);
+router.post("/:id/deadlines", protect, createDeadline);
+router.put("/:id/deadlines/:deadlineId", protect, updateDeadline);
+router.delete("/:id/deadlines/:deadlineId", protect, deleteDeadline);
+router.get("/:id/suggestions", protect, listSuggestions);
+router.post("/:id/suggestions", protect, createSuggestion);
+router.put("/:id/suggestions/:suggestionId/decision", protect, decideSuggestion);
 router.get("/:id/tags", protect, getDocumentTags);
 router.put("/:id/tags", protect, updateDocumentTags);
 router.get("/:id/activity", protect, getDocumentActivity);

@@ -5,6 +5,8 @@ import { Server } from "socket.io";
 import docRoutes from "../routes/docRoutes";
 import notificationRoutes from "../routes/notificationRoutes";
 import authRoutes from "../routes/authRoutes";
+import integrationRoutes from "../routes/integrationRoutes";
+import calendarRoutes from "../routes/calendarRoutes";
 import { checkDatabaseConnection } from "../config/supabase";
 
 const normalizeOrigin = (value: string) => value.trim().replace(/\/+$/, "");
@@ -136,6 +138,8 @@ export const createServer = () => {
   app.use("/api/auth", authRoutes);
   app.use("/api/docs", docRoutes);
   app.use("/api/notifications", notificationRoutes);
+  app.use("/api/integrations", integrationRoutes);
+  app.use("/api", calendarRoutes);
 
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, {

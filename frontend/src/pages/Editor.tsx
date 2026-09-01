@@ -117,6 +117,8 @@ type LocalDraft = {
   updatedAt: string;
 };
 type AiAction = "summarize" | "rewrite" | "grammar" | "tone" | "outline" | "actions";
+type DeadlineItem = { id: string; title: string; description: string; dueAt: string; status: "open" | "completed" | "cancelled" };
+type SuggestionItem = { id: string; originalText: string; replacementText: string; position: { from: number; to: number }; status: "open" | "accepted" | "rejected"; createdBy: { id: string; email: string }; createdAt: string };
 
 const textColorOptions = [
   { label: "Ink", value: "#131313" },
@@ -346,6 +348,14 @@ const EditorPage = () => {
   const [aiResult, setAiResult] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiSource, setAiSource] = useState("");
+  const [workflowOpen, setWorkflowOpen] = useState(false);
+  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [deadlineTitle, setDeadlineTitle] = useState("");
+  const [deadlineDueAt, setDeadlineDueAt] = useState("");
+  const [suggestionReplacement, setSuggestionReplacement] = useState("");
+  const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [workflowNotice, setWorkflowNotice] = useState("");
   const aiSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const [comments, setComments] = useState<DocComment[]>([]);
   const [commentFilter, setCommentFilter] = useState<"open" | "resolved" | "all">("open");
@@ -579,9 +589,11 @@ const EditorPage = () => {
       return;
     }
 
-    const [docResponse, commentsResponse] = await Promise.all([
+    const [docResponse, commentsResponse, deadlineResponse, suggestionResponse] = await Promise.all([
       api.get<{ document: DocItem }>(`/docs/${id}`),
       api.get<{ comments: DocComment[] }>(`/docs/${id}/comments`),
+      api.get<{ deadlines: DeadlineItem[] }>(`/docs/${id}/deadlines`).catch(() => ({ data: { deadlines: [] as DeadlineItem[] } })),
+      api.get<{ suggestions: SuggestionItem[] }>(`/docs/${id}/suggestions`).catch(() => ({ data: { suggestions: [] as SuggestionItem[] } })),
     ]);
 
     const tagsResponse = await api
@@ -591,6 +603,8 @@ const EditorPage = () => {
     setActiveDoc(docResponse.data.document);
     upsertDoc(docResponse.data.document);
     setComments(commentsResponse.data.comments);
+    setDeadlines(deadlineResponse.data.deadlines);
+    setSuggestions(suggestionResponse.data.suggestions);
     setTitleInput(docResponse.data.document.title);
     setTags(tagsResponse.data.tags || []);
     setTagInput((tagsResponse.data.tags || []).join(", "));
@@ -602,6 +616,51 @@ const EditorPage = () => {
       setLocalDraftNotice(localDraft);
     } else {
       setLocalDraftNotice(null);
+    }
+  };
+
+  const createDeadlineItem = async () => {
+    if (!id || !deadlineTitle.trim() || !deadlineDueAt) return;
+    setWorkflowBusy(true); setWorkflowNotice("");
+    try {
+      const response = await api.post<{ deadline: DeadlineItem }>(`/docs/${id}/deadlines`, { title: deadlineTitle, dueAt: new Date(deadlineDueAt).toISOString() });
+      setDeadlines((current) => [...current, response.data.deadline].sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt)));
+      setDeadlineTitle(""); setDeadlineDueAt(""); setWorkflowNotice("Deadline created.");
+    } catch (requestError) { setWorkflowNotice(axios.isAxiosError(requestError) ? requestError.response?.data?.message || "Deadline could not be created" : "Deadline could not be created"); } finally { setWorkflowBusy(false); }
+  };
+
+  const updateDeadlineStatus = async (deadline: DeadlineItem, status: DeadlineItem["status"]) => {
+    if (!id) return;
+    const response = await api.put<{ deadline: DeadlineItem }>(`/docs/${id}/deadlines/${deadline.id}`, { status });
+    setDeadlines((current) => current.map((item) => item.id === deadline.id ? response.data.deadline : item));
+  };
+
+  const createSuggestionItem = async () => {
+    if (!id || !editor) return;
+    const { from, to } = editor.state.selection;
+    const originalText = editor.state.doc.textBetween(from, to, " ");
+    if (from === to || !originalText) { setWorkflowNotice("Select text in the editor before creating a suggestion."); return; }
+    setWorkflowBusy(true); setWorkflowNotice("");
+    try {
+      const response = await api.post<{ suggestion: SuggestionItem }>(`/docs/${id}/suggestions`, { originalText, replacementText: suggestionReplacement, position: { from, to } });
+      setSuggestions((current) => [response.data.suggestion, ...current]); setSuggestionReplacement(""); setWorkflowNotice("Suggestion added without changing the document.");
+    } catch (requestError) { setWorkflowNotice(axios.isAxiosError(requestError) ? requestError.response?.data?.message || "Suggestion could not be created" : "Suggestion could not be created"); } finally { setWorkflowBusy(false); }
+  };
+
+  const decideSuggestionItem = async (item: SuggestionItem, status: "accepted" | "rejected") => {
+    if (!id || !editor) return;
+    if (status === "accepted") {
+      const currentText = editor.state.doc.textBetween(item.position.from, item.position.to, " ");
+      if (currentText !== item.originalText) { setWorkflowNotice("This text changed after the suggestion was created. Review it and create a fresh suggestion instead."); return; }
+      const applied = editor.chain().focus().insertContentAt(item.position, item.replacementText).run();
+      if (!applied) { setWorkflowNotice("The suggestion could not be applied to the current editor state."); return; }
+    }
+    try {
+      const response = await api.put<{ suggestion: SuggestionItem }>(`/docs/${id}/suggestions/${item.id}/decision`, { status });
+      setSuggestions((current) => current.map((value) => value.id === item.id ? response.data.suggestion : value)); setWorkflowNotice(`Suggestion ${status}.`);
+    } catch (requestError) {
+      if (status === "accepted") editor.commands.undo();
+      setWorkflowNotice(axios.isAxiosError(requestError) ? requestError.response?.data?.message || "Suggestion decision failed; the editor change was rolled back" : "Suggestion decision failed; the editor change was rolled back");
     }
   };
 
@@ -2257,7 +2316,7 @@ const EditorPage = () => {
               </div>
             </div>
 
-            <div className="grid w-full grid-cols-[1fr_1fr_1fr_1fr_auto_auto] gap-1.5 sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-2 md:gap-3">
+            <div className="grid w-full grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] gap-1.5 sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-2 md:gap-3">
               <button
                 type="button"
                 onClick={() => setMobilePanel("comments")}
@@ -2293,6 +2352,16 @@ const EditorPage = () => {
               >
                 <span className="material-symbols-outlined text-sm">timeline</span>
                 <span className="hidden min-[390px]:inline" aria-hidden="true">Activity</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWorkflowOpen(true)}
+                className="emerald-muted-button min-w-0 px-2 text-[11px] sm:flex-none sm:px-4 sm:text-sm"
+                aria-label="Review and deadlines"
+                title="Review and deadlines"
+              >
+                <span className="material-symbols-outlined text-sm">rate_review</span>
+                <span className="hidden min-[430px]:inline" aria-hidden="true">Review</span>
               </button>
               <button
                 type="button"
@@ -3275,6 +3344,19 @@ const EditorPage = () => {
           <span className="material-symbols-outlined text-base">close_fullscreen</span>
           Exit focus
         </button>
+      ) : null}
+
+      {workflowOpen ? (
+        <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/75 sm:items-center sm:px-4">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-lg border border-outline-variant/10 p-5 shadow-2xl sm:rounded-lg">
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Workflow</p><h2 className="mt-2 text-2xl font-bold text-white">Suggestions and deadlines</h2></div><button type="button" onClick={() => setWorkflowOpen(false)} className="rounded p-2 text-on-surface-variant hover:bg-white/10"><span className="material-symbols-outlined">close</span></button></div>
+            {workflowNotice ? <p className="mt-4 rounded border border-white/10 bg-surface px-3 py-2 text-sm text-on-surface-variant">{workflowNotice}</p> : null}
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <section className="rounded border border-white/10 bg-surface p-4"><h3 className="font-bold text-white">Deadlines</h3>{canEditDocument(activeDoc?.role) ? <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><input className="emerald-input" placeholder="Deadline title" value={deadlineTitle} onChange={(event) => setDeadlineTitle(event.target.value)} /><input className="emerald-input" type="datetime-local" value={deadlineDueAt} onChange={(event) => setDeadlineDueAt(event.target.value)} /><button type="button" disabled={workflowBusy} onClick={() => createDeadlineItem().catch(console.error)} className="emerald-primary-button justify-center">Add</button></div> : null}<div className="mt-4 space-y-2">{deadlines.length ? deadlines.map((item) => <div key={item.id} className="rounded border border-white/5 bg-surface-container p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-white">{item.title}</p><p className="mt-1 text-xs text-on-surface-variant">{new Date(item.dueAt).toLocaleString()} · {item.status}</p></div>{canEditDocument(activeDoc?.role) && item.status === "open" ? <button type="button" onClick={() => updateDeadlineStatus(item, "completed").catch(console.error)} className="text-xs font-semibold text-primary">Complete</button> : null}</div></div>) : <p className="text-sm text-on-surface-variant">No deadlines.</p>}</div></section>
+              <section className="rounded border border-white/10 bg-surface p-4"><h3 className="font-bold text-white">Suggestion mode</h3><p className="mt-1 text-xs leading-5 text-on-surface-variant">Select text in the document, enter the proposed replacement, and add it for review. The document is unchanged until acceptance.</p>{canCommentDocument(activeDoc?.role) ? <div className="mt-4 flex gap-2"><input className="emerald-input min-w-0 flex-1" placeholder="Proposed replacement (blank deletes)" value={suggestionReplacement} onChange={(event) => setSuggestionReplacement(event.target.value)} /><button type="button" disabled={workflowBusy} onClick={() => createSuggestionItem().catch(console.error)} className="emerald-primary-button justify-center">Suggest</button></div> : null}<div className="mt-4 space-y-2">{suggestions.length ? suggestions.map((item) => <div key={item.id} className="rounded border border-white/5 bg-surface-container p-3"><p className="text-xs text-error line-through">{item.originalText}</p><p className="mt-1 text-xs text-primary">{item.replacementText || "Delete selection"}</p><p className="mt-2 text-[10px] uppercase tracking-widest text-on-surface-variant">{item.createdBy.email} · {item.status}</p>{item.status === "open" && canEditDocument(activeDoc?.role) ? <div className="mt-3 flex gap-2"><button type="button" onClick={() => decideSuggestionItem(item, "accepted").catch(console.error)} className="emerald-primary-button px-3 py-2 text-xs">Accept</button><button type="button" onClick={() => decideSuggestionItem(item, "rejected").catch(console.error)} className="emerald-muted-button px-3 py-2 text-xs">Reject</button></div> : null}</div>) : <p className="text-sm text-on-surface-variant">No suggestions.</p>}</div></section>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {shareModalOpen ? (

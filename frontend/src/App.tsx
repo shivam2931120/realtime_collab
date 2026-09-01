@@ -16,6 +16,8 @@ const DiscoverPage = lazy(() => import("./pages/Discover"));
 const LibraryPage = lazy(() => import("./pages/Library"));
 const AnalyticsPage = lazy(() => import("./pages/Analytics"));
 const PublicDocumentPage = lazy(() => import("./pages/PublicDocument"));
+const IntegrationsPage = lazy(() => import("./pages/Integrations"));
+const CalendarPage = lazy(() => import("./pages/Calendar"));
 
 type SessionResponse = {
   token: string;
@@ -375,6 +377,14 @@ const App = () => {
               <AnalyticsPage />
             </ProtectedRoute>
           }
+        />
+        <Route
+          path="/integrations"
+          element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/calendar"
+          element={<ProtectedRoute><CalendarPage /></ProtectedRoute>}
         />
         <Route
           path="/editor/:id"

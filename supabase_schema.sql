@@ -187,6 +187,57 @@ create table if not exists public.document_attachments (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Additive outbound integrations. Credentials never enter document payloads or frontend bundles.
+create table if not exists public.outbound_integrations (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null,
+  name text not null,
+  provider text not null check (provider in ('webhook', 'slack', 'discord', 'teams')),
+  endpoint_url text not null,
+  signing_secret text,
+  event_types jsonb default '["document_updated", "document_shared", "document_commented"]'::jsonb,
+  enabled boolean default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create table if not exists public.outbound_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  integration_id uuid references public.outbound_integrations(id) on delete cascade not null,
+  event_id uuid references public.document_events(id) on delete cascade,
+  status text not null check (status in ('delivered', 'failed')),
+  response_code integer,
+  error_message text,
+  attempted_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Deadlines are document metadata and do not alter the canonical editor content.
+create table if not exists public.document_deadlines (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references public.documents(id) on delete cascade not null,
+  title text not null,
+  description text default '',
+  due_at timestamp with time zone not null,
+  status text default 'open' check (status in ('open', 'completed', 'cancelled')),
+  created_by text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Suggestions are review records. Accepted changes are applied by the Yjs-bound editor.
+create table if not exists public.document_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references public.documents(id) on delete cascade not null,
+  created_by text not null,
+  original_text text not null,
+  replacement_text text not null,
+  position jsonb not null,
+  status text default 'open' check (status in ('open', 'accepted', 'rejected')),
+  decided_by text,
+  decided_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 create index if not exists idx_document_attachments_document on public.document_attachments(document_id, created_at desc);
 
 insert into storage.buckets (id, name, public)
@@ -211,6 +262,11 @@ create index if not exists idx_document_events_document_created on public.docume
 create index if not exists idx_document_events_actor_created on public.document_events(actor_id, created_at desc);
 create index if not exists idx_document_public_links_document on public.document_public_links(document_id, created_at desc);
 create index if not exists idx_document_public_links_active on public.document_public_links(expires_at) where revoked_at is null;
+create index if not exists idx_outbound_integrations_owner on public.outbound_integrations(owner_id, enabled);
+create index if not exists idx_outbound_deliveries_integration on public.outbound_deliveries(integration_id, attempted_at desc);
+create index if not exists idx_document_deadlines_due on public.document_deadlines(due_at, status);
+create index if not exists idx_document_deadlines_document on public.document_deadlines(document_id, due_at);
+create index if not exists idx_document_suggestions_document on public.document_suggestions(document_id, status, created_at desc);
 
 -- Decode the app's deterministic usr_<base64url(email)> IDs for admin views.
 create or replace function public.app_email_from_user_id(value text)

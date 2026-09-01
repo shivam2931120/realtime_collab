@@ -3,7 +3,7 @@
 Use `supabase_schema.sql` to initialize or repair the public schema.
 
 What it creates:
-- App tables: `auth_users`, `auth_refresh_tokens`, `auth_password_reset_tokens`, `folders`, `documents`, `document_collaborators`, `comments`, `notifications`, `document_versions`, `document_tags`, `document_templates`, `document_events`.
+- App tables: `auth_users`, `auth_refresh_tokens`, `auth_password_reset_tokens`, `folders`, `documents`, `document_collaborators`, `comments`, `notifications`, `document_versions`, `document_collaboration_states`, `document_tags`, `document_templates`, `document_events`, `document_public_links`, `document_attachments`, `outbound_integrations`, `outbound_deliveries`, `document_deadlines`, and `document_suggestions`.
 - Admin views for Table Editor: `workspace_users`, `workspace_files`, `workspace_permissions`, `workspace_comments`.
 
 Apply in Supabase:

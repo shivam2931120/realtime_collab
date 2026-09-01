@@ -9,6 +9,8 @@ Components
 - Database: Supabase (Postgres). Stores documents, comments, versions, and metadata.
 - Realtime: Yjs CRDT updates over authenticated Socket.IO rooms. Redis remains optional for multi-instance fan-out, and the legacy HTML event is retained as a rolling-deployment fallback.
 - Cache/PubSub: Redis used for scaling Socket.IO across nodes and simple caching.
+- Integrations: document events fan out asynchronously to owner-configured HTTPS webhooks or Slack, Discord, and Teams incoming webhooks. Generic webhook bodies are HMAC-signed and delivery outcomes are persisted.
+- Workflow: deadlines and suggestions are stored separately from document content. Suggestion acceptance is applied through the Yjs-bound editor so canonical HTML and CRDT state follow the existing save path.
 
 Data flow
 - Document edits: Tiptap binds to a per-document Y.Doc; incremental `yjs-update` messages converge independently of arrival order and persist in `document_collaboration_states`.

@@ -13,6 +13,9 @@ Realtime document collaboration and team inbox workspace built with:
 - EmailJS transactional email
 - Yjs CRDT collaboration with persisted state and a legacy realtime fallback
 - NVIDIA Nemotron writing assistance and semantic search
+- Signed webhooks plus Slack, Discord, and Microsoft Teams notifications
+- Document deadlines with authenticated iCalendar export
+- Non-destructive suggestion review applied through the Yjs-bound editor
 
 ## Project structure
 
@@ -127,6 +130,10 @@ Frontend runs on `http://localhost:5173`.
 - `GET /api/docs/:id/comments`
 - `POST /api/docs/:id/comments`
 - `POST /api/docs/:id/ai/write`
+- `GET|POST /api/docs/:id/deadlines`
+- `PUT|DELETE /api/docs/:id/deadlines/:deadlineId`
+- `GET|POST /api/docs/:id/suggestions`
+- `PUT /api/docs/:id/suggestions/:suggestionId/decision`
 - `POST /api/docs/:id/versions`
 - `GET /api/docs/:id/versions`
 - `POST /api/docs/:id/versions/:versionId/restore`
@@ -144,6 +151,11 @@ Frontend runs on `http://localhost:5173`.
 - `PUT /api/notifications/read-all`
 - `PUT /api/notifications/:id/read`
 - `GET /metrics`
+- `GET|POST /api/integrations`
+- `PUT|DELETE /api/integrations/:id`
+- `POST /api/integrations/:id/test`
+- `GET /api/integrations/:id/deliveries`
+- `GET /api/calendar.ics`
 
 ## Realtime socket events
 

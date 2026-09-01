@@ -1,0 +1,12 @@
+import express from "express";
+import { protect } from "../middleware/authMiddleware";
+import { createIntegration, deleteIntegration, listDeliveries, listIntegrations, testIntegration, updateIntegration } from "../controllers/integrationController";
+const router = express.Router();
+router.use(protect);
+router.get("/", listIntegrations);
+router.post("/", createIntegration);
+router.put("/:id", updateIntegration);
+router.delete("/:id", deleteIntegration);
+router.post("/:id/test", testIntegration);
+router.get("/:id/deliveries", listDeliveries);
+export default router;
