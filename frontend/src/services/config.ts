@@ -16,7 +16,7 @@ const configuredApiUrl = import.meta.env.VITE_API_URL
   : "";
 
 const defaultBackendUrl = import.meta.env.PROD
-  ? "https://realtime-collab-backend-v2.onrender.com"
+  ? "https://realtime-collab-backend-oiou.onrender.com"
   : "http://localhost:5000";
 
 export const BACKEND_URL =

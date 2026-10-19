@@ -17,6 +17,7 @@
     "email:history": "tsx ./scripts/emailjs-history.ts"
   },
   "dependencies": {
+    "@clerk/backend": "^3.25.0",
     "@supabase/supabase-js": "^2.103.3",
     "cors": "^2.8.5",
     "docx": "^9.6.1",

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAuthToken } from "../utils/authToken";
 import { emailFromUserId } from "../utils/userIdentity";
+import { clerkEnabled, verifyClerkUser } from "../utils/clerkAuth";
 
 type AppAuth = {
   sessionId: string;
@@ -44,9 +45,9 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
   try {
     const token = match[1];
-    const user = verifyAuthToken(token);
+    const user = clerkEnabled ? await verifyClerkUser(token) : verifyAuthToken(token);
     (req as AuthRequest).auth = {
-      sessionId: `sess_${user.id}`,
+      sessionId: "sessionId" in user && typeof user.sessionId === "string" ? user.sessionId : `sess_${user.id}`,
       userId: user.id,
       email: user.email,
       getToken: async () => token,

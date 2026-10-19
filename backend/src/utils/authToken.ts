@@ -26,8 +26,6 @@ const getTokenSecret = () => {
   return "dev-auth-secret";
 };
 
-const TOKEN_SECRET = getTokenSecret();
-
 const toBase64Url = (value: string) =>
   Buffer.from(value, "utf8")
     .toString("base64")
@@ -42,7 +40,7 @@ const fromBase64Url = (value: string) => {
 };
 
 const sign = (payloadSegment: string) =>
-  crypto.createHmac("sha256", TOKEN_SECRET).update(payloadSegment).digest("base64url");
+  crypto.createHmac("sha256", getTokenSecret()).update(payloadSegment).digest("base64url");
 
 const timingSafeEquals = (a: string, b: string) => {
   const left = Buffer.from(a);

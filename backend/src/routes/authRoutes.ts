@@ -10,16 +10,19 @@ import {
   requestPasswordReset,
 } from "../controllers/authController";
 import { protect } from "../middleware/authMiddleware";
+import { clerkEnabled } from "../utils/clerkAuth";
 
 const router = express.Router();
 
-router.post("/register", register);
-router.post("/login", login);
-router.post("/refresh", refreshSession);
-router.post("/logout", logout);
-router.post("/password-reset/request", requestPasswordReset);
-router.post("/password-reset/confirm", confirmPasswordReset);
-router.post("/session", createSession);
+if (!clerkEnabled) {
+  router.post("/register", register);
+  router.post("/login", login);
+  router.post("/refresh", refreshSession);
+  router.post("/logout", logout);
+  router.post("/password-reset/request", requestPasswordReset);
+  router.post("/password-reset/confirm", confirmPasswordReset);
+  router.post("/session", createSession);
+}
 router.get("/me", protect, getSession);
 
 export default router;

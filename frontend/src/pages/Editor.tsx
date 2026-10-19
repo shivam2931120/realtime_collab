@@ -28,7 +28,7 @@ import { reportSocketBackendError } from "../services/backendErrors";
 import EditorCommentCard from "../components/EditorCommentCard";
 import { DocItem, useDocStore } from "../store/docStore";
 import { DocComment } from "../types";
-import { getAuthToken } from "../services/auth";
+import { getRequestToken } from "../services/auth";
 import { useAuthStore } from "../store/authStore";
 import { usePreferencesStore } from "../store/preferencesStore";
 
@@ -743,7 +743,7 @@ const EditorPage = () => {
     let handleLocalYjsUpdateRef: ((update: Uint8Array, origin: unknown) => void) | null = null;
 
     const initializeSocket = async () => {
-      const token = getAuthToken();
+      const token = await getRequestToken();
       if (!isActive || !token) {
         return;
       }

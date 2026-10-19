@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { supabase } from "../config/supabase";
 import { verifyAuthToken } from "../utils/authToken";
+import { clerkEnabled, verifyClerkUser } from "../utils/clerkAuth";
 import { maybeCreateAutomaticVersion } from "../utils/documentVersions";
 import {
   applyCollaborationUpdate,
@@ -104,7 +105,7 @@ export const setupSockets = (io: Server) => {
         return next(new Error("Unauthorized: Token missing"));
       }
 
-      const verifiedUser = verifyAuthToken(token);
+      const verifiedUser = clerkEnabled ? await verifyClerkUser(token) : verifyAuthToken(token);
       socket.data.user = { id: verifiedUser.id };
       return next();
     } catch (error) {

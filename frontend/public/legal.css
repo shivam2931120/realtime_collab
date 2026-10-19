@@ -1,0 +1,29 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+:root { color-scheme: dark; font-family: "IBM Plex Sans", Arial, sans-serif; color: #eef1f5; background: #101b28; }
+* { box-sizing: border-box; }
+body { margin: 0; line-height: 1.65; background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(211,218,226,.035) 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, rgba(211,218,226,.035) 23px 24px); }
+a { color: #ff916e; text-underline-offset: 3px; }
+a:hover { color: #ffb59c; }
+a:focus-visible { outline: 2px solid #ff916e; outline-offset: 4px; }
+.site-header { border-bottom: 1px solid #334155; background: #162231; }
+.header-inner, .site-footer, main { width: min(100% - 2.5rem, 840px); margin: 0 auto; }
+.header-inner { min-height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.brand { color: #eef1f5; font-size: 1.15rem; font-weight: 700; text-decoration: none; letter-spacing: -.035em; }
+.header-inner nav, .site-footer nav { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .9rem; }
+main { padding: 4.5rem 0 5rem; }
+.eyebrow { color: #ff916e; font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .16em; }
+h1 { max-width: 780px; margin: .65rem 0 1rem; font-size: clamp(2.3rem, 6vw, 4rem); letter-spacing: -.06em; line-height: 1.08; }
+h2 { margin: 2.7rem 0 .75rem; font-size: 1.3rem; letter-spacing: -.025em; }
+p, li { color: #b9c6d6; }
+p { margin: .8rem 0 1.1rem; }
+ul { padding-left: 1.35rem; }
+li + li { margin-top: .45rem; }
+.lead { max-width: 700px; font-size: 1.14rem; }
+.meta { font-size: .86rem; color: #a9b7c8; }
+.panel { margin: 2rem 0; padding: 1.4rem 1.6rem; border: 1px solid #334155; background: #162231; }
+.panel h2 { margin-top: 0; }
+.button { display: inline-block; padding: .78rem 1.1rem; color: #fff; background: #e4572e; font-weight: 600; text-decoration: none; }
+.button:hover { color: #fff; background: #b43e1d; }
+.site-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.5rem 0 2.5rem; border-top: 1px solid #334155; font-size: .85rem; color: #a9b7c8; }
+@media (max-width: 560px) { .header-inner { align-items: flex-start; flex-direction: column; padding: 1rem 0; } main { padding-top: 3rem; } }

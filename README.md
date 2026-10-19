@@ -10,6 +10,7 @@ Realtime document collaboration and team inbox workspace built with:
 - Supabase (Postgres)
 - Socket.io
 - Internal token-based email auth
+- Optional Clerk sign-in with Google
 - EmailJS transactional email
 - Yjs CRDT collaboration with persisted state and a legacy realtime fallback
 - NVIDIA Nemotron writing assistance and semantic search
@@ -75,6 +76,7 @@ NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5
 VITE_BACKEND_URL=http://localhost:5000
 VITE_API_URL=http://localhost:5000/api
 VITE_SOCKET_URL=http://localhost:5000
+VITE_CLERK_PUBLISHABLE_KEY=
 ```
 
 ## Local run
@@ -107,6 +109,10 @@ Frontend runs on `http://localhost:5173`.
 - `Continue with demo` uses `/api/auth/session` for evaluator access without creating an account.
 - Token is stored client-side and sent as `Authorization: Bearer <token>`.
 - Backend verifies token signature and derives a stable user ID from email.
+
+### Clerk and Google sign-in
+
+See [Clerk and Google setup](docs/CLERK_GOOGLE_AUTH.md) for the Clerk keys, Google Cloud OAuth Branding and Audience settings, and rollout steps. In Clerk mode, set `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_AUTH_PROVIDER=clerk` in the frontend and `CLERK_SECRET_KEY` plus `CLERK_AUTHORIZED_PARTIES` in the backend. The API and Socket.IO verify Clerk session tokens. Existing document access remains tied to the user's verified primary email address. Legacy login routes are disabled while Clerk mode is enabled.
 
 ## API endpoints
 

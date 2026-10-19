@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { SessionUser, clearSession, getStoredSession, saveSession } from "../services/auth";
+import { SessionUser, clearSession, clerkEnabled, getStoredSession, saveSession } from "../services/auth";
 
 type AuthState = {
   token: string | null;
@@ -8,6 +8,7 @@ type AuthState = {
   hydrated: boolean;
   hydrate: () => void;
   setSession: (token: string, user: SessionUser, refreshToken?: string) => void;
+  setClerkSession: (user: SessionUser | null) => void;
   clearSession: () => void;
 };
 
@@ -17,6 +18,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   hydrated: false,
   hydrate: () => {
+    if (clerkEnabled) {
+      clearSession();
+      set({ hydrated: true });
+      return;
+    }
     const session = getStoredSession();
     set({
       token: session?.token || null,
@@ -29,6 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     saveSession({ token, refreshToken, user });
     set({ token, refreshToken: refreshToken || null, user, hydrated: true });
   },
+  setClerkSession: (user) => set({ token: user ? "clerk-session" : null, refreshToken: null, user, hydrated: true }),
   clearSession: () => {
     clearSession();
     set({ token: null, refreshToken: null, user: null, hydrated: true });

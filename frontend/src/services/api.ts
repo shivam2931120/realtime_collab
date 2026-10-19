@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getAuthToken } from "./auth";
+import { getRequestToken } from "./auth";
 import { API_BASE_URL } from "./config";
 import { reportBackendError } from "./backendErrors";
 
@@ -10,7 +10,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = getAuthToken();
+  const token = await getRequestToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

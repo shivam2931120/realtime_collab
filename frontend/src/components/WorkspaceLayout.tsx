@@ -8,6 +8,7 @@ import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
 import { useDocStore } from "../store/docStore";
 import { usePreferencesStore } from "../store/preferencesStore";
+import { clerkEnabled, signOutClerk } from "../services/auth";
 
 type WorkspaceLayoutProps = {
   pageLabel: string;
@@ -68,7 +69,9 @@ const WorkspaceLayout = ({ pageLabel, title, children, actions }: WorkspaceLayou
   }, []);
 
   const handleLogout = async () => {
-    if (refreshToken) {
+    if (clerkEnabled) {
+      await signOutClerk();
+    } else if (refreshToken) {
       await api.post("/auth/logout", { refreshToken }).catch(() => undefined);
     }
     disconnectSocket();

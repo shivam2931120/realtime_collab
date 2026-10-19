@@ -10,6 +10,17 @@ type SessionPayload = {
 };
 
 const STORAGE_KEY = "editorial.session";
+export const clerkEnabled = import.meta.env.VITE_AUTH_PROVIDER === "clerk" && Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+let clerkGetToken: (() => Promise<string | null>) | null = null;
+let clerkSignOut: (() => Promise<void>) | null = null;
+
+export const setClerkAuth = (getToken: (() => Promise<string | null>) | null, signOut: (() => Promise<void>) | null) => {
+  clerkGetToken = getToken;
+  clerkSignOut = signOut;
+};
+
+export const getRequestToken = async () => clerkEnabled ? clerkGetToken?.() ?? null : getAuthToken();
+export const signOutClerk = async () => { await clerkSignOut?.(); };
 
 const safeParse = (value: string | null): SessionPayload | null => {
   if (!value) return null;

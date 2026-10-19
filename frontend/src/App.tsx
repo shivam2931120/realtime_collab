@@ -1,10 +1,13 @@
 import axios from "axios";
 import { FormEvent, ReactNode, Suspense, lazy, useEffect, useState } from "react";
-import { Navigate, Route, Routes, Link, useLocation, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import api from "./services/api";
 import { useAuthStore } from "./store/authStore";
 import { useDocStore } from "./store/docStore";
 import BackendErrorModal from "./components/BackendErrorModal";
+import { HandleSSOCallback, RedirectToTasks, SignIn, SignUp } from "@clerk/react";
+import { clerkEnabled } from "./services/auth";
+import GoogleSignInButton, { GoogleButton } from "./components/GoogleSignInButton";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const DraftsPage = lazy(() => import("./pages/Drafts"));
@@ -102,14 +105,18 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black px-4">
-      <div className="w-full max-w-md rounded border border-white/10 bg-surface-container p-8 shadow-2xl">
-        <h1 className="text-2xl font-bold text-white">{submitLabel}</h1>
-        <p className="mt-2 text-sm text-on-surface-variant">{helperCopy}</p>
+    <main className="auth-page">
+      <section className="auth-card">
+        <a href="/about.html" className="auth-brand"><img src="/favicon.ico" alt="" />Editorial</a>
+        <h1>{submitLabel}</h1>
+        <p className="auth-helper">{helperCopy}</p>
+
+        <GoogleButton unavailable />
+        <div className="auth-divider"><span>or use email</span></div>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <label className="auth-label">
               Work email
             </label>
             <input
@@ -117,12 +124,12 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded border border-white/10 bg-surface px-3 py-2 text-sm text-white outline-none ring-primary/50 transition focus:ring-2"
+              className="auth-input"
               placeholder="you@company.com"
             />
           </div>
           <div>
-            <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <label className="auth-label">
               Password
             </label>
             <input
@@ -131,13 +138,13 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
               minLength={8}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded border border-white/10 bg-surface px-3 py-2 text-sm text-white outline-none ring-primary/50 transition focus:ring-2"
+              className="auth-input"
               placeholder="At least 8 characters"
             />
           </div>
           {error ? <p className="text-sm text-error">{error}</p> : null}
           {resetSent ? <p className="text-sm text-primary">Reset instructions sent if the account exists.</p> : null}
-          <button type="submit" disabled={submitting} className="emerald-primary-button w-full justify-center">
+          <button type="submit" disabled={submitting} className="auth-primary-button">
             {submitting ? "Please wait..." : submitLabel}
           </button>
         </form>
@@ -146,23 +153,23 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
           type="button"
           disabled={submitting}
           onClick={handleDemoSession}
-          className="emerald-muted-button mt-3 w-full justify-center"
+          className="auth-secondary-button mt-3"
         >
           Continue with demo
         </button>
 
-        <p className="mt-6 text-sm text-on-surface-variant">
+        <p className="auth-switch mt-6">
           {mode === "register" ? (
             <>
               Already have access?{" "}
-              <Link className="text-primary hover:underline" to="/login">
+              <Link to="/login">
                 Sign in
               </Link>
             </>
           ) : (
             <>
               New here?{" "}
-              <Link className="text-primary hover:underline" to="/register">
+              <Link to="/register">
                 Create account
               </Link>
             </>
@@ -172,14 +179,64 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
           <button
             type="button"
             onClick={requestReset}
-            className="mt-3 text-sm text-primary hover:underline"
+            className="auth-link mt-3"
             disabled={submitting}
           >
             Forgot password?
           </button>
         ) : null}
-      </div>
+        <p className="auth-legal mt-6">
+          <a className="hover:underline" href="/about.html">About</a>
+          <span aria-hidden="true"> · </span>
+          <a className="hover:underline" href="/privacy.html">Privacy Policy</a>
+          <span aria-hidden="true"> · </span>
+          <a className="hover:underline" href="/terms.html">Terms of Service</a>
+        </p>
+      </section>
+    </main>
+  );
+};
+
+const ClerkAuthScreen = ({ mode }: { mode: "login" | "register" }) => (
+  <main className="auth-page">
+    <div className="auth-clerk-shell">
+      <a href="/about.html" className="auth-brand"><img src="/favicon.ico" alt="" />Editorial</a>
+      <p className="auth-helper mb-6">A shared workspace for editorial teams to write, review, and publish together.</p>
+      <GoogleSignInButton />
+      <div className="auth-divider"><span>or use email</span></div>
+    {mode === "login" ? (
+      <SignIn routing="hash" signUpUrl="/register" fallbackRedirectUrl="/dashboard" appearance={{ elements: { socialButtons: { display: "none" }, dividerRow: { display: "none" } } }} />
+    ) : (
+      <SignUp routing="hash" signInUrl="/login" fallbackRedirectUrl="/dashboard" appearance={{ elements: { socialButtons: { display: "none" }, dividerRow: { display: "none" } } }} />
+    )}
+    <p className="auth-legal mt-6">
+      <a className="hover:underline" href="/about.html">About</a>
+      <span aria-hidden="true"> · </span>
+      <a className="hover:underline" href="/privacy.html">Privacy Policy</a>
+      <span aria-hidden="true"> · </span>
+      <a className="hover:underline" href="/terms.html">Terms of Service</a>
+    </p>
     </div>
+  </main>
+);
+
+const GoogleCallbackScreen = () => {
+  const navigate = useNavigate();
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <h1>Completing sign-in</h1>
+        <HandleSSOCallback
+          navigateToApp={({ session, decorateUrl }) => {
+            const destination = decorateUrl(session?.currentTask ? "/auth/tasks" : "/dashboard");
+            if (destination.startsWith("http")) window.location.assign(destination);
+            else navigate(destination, { replace: true });
+          }}
+          navigateToSignIn={() => navigate("/login", { replace: true })}
+          navigateToSignUp={() => navigate("/register", { replace: true })}
+        />
+      </section>
+    </main>
   );
 };
 
@@ -213,9 +270,10 @@ const ResetPasswordScreen = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <div className="w-full max-w-md rounded border border-white/10 bg-surface-container p-8 shadow-2xl">
-        <h1 className="text-2xl font-bold text-white">Reset password</h1>
+    <main className="auth-page">
+      <section className="auth-card">
+        <a href="/about.html" className="auth-brand"><img src="/favicon.ico" alt="" />Editorial</a>
+        <h1>Reset password</h1>
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <input
             type="password"
@@ -223,20 +281,20 @@ const ResetPasswordScreen = () => {
             minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded border border-white/10 bg-surface px-3 py-2 text-sm text-white outline-none ring-primary/50 transition focus:ring-2"
+            className="auth-input"
             placeholder="New password"
           />
           {error ? <p className="text-sm text-error">{error}</p> : null}
           {status ? <p className="text-sm text-primary">{status}</p> : null}
-          <button type="submit" disabled={submitting || !token} className="emerald-primary-button w-full justify-center">
+          <button type="submit" disabled={submitting || !token} className="auth-primary-button">
             {submitting ? "Saving..." : "Update password"}
           </button>
         </form>
-        <Link className="mt-5 inline-block text-sm text-primary hover:underline" to="/login">
+        <Link className="auth-link mt-5 inline-block" to="/login">
           Back to sign in
         </Link>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };
 
@@ -271,7 +329,7 @@ const App = () => {
   }, [hydrate]);
 
   useEffect(() => {
-    if (!hydrated || !token) return;
+    if (clerkEnabled || !hydrated || !token) return;
     api.get("/auth/me").catch(() => {
       if (!refreshToken) {
         clearSession();
@@ -310,9 +368,11 @@ const App = () => {
       <SessionGate />
       <Routes>
         <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
-        <Route path="/login" element={<AuthScreen mode="login" />} />
-        <Route path="/register" element={<AuthScreen mode="register" />} />
-        <Route path="/reset-password" element={<ResetPasswordScreen />} />
+        <Route path="/login" element={clerkEnabled ? <ClerkAuthScreen mode="login" /> : <AuthScreen mode="login" />} />
+        <Route path="/register" element={clerkEnabled ? <ClerkAuthScreen mode="register" /> : <AuthScreen mode="register" />} />
+        <Route path="/reset-password" element={clerkEnabled ? <Navigate to="/login" replace /> : <ResetPasswordScreen />} />
+        <Route path="/sso-callback" element={clerkEnabled ? <GoogleCallbackScreen /> : <Navigate to="/login" replace />} />
+        <Route path="/auth/tasks" element={clerkEnabled ? <RedirectToTasks /> : <Navigate to="/login" replace />} />
         <Route path="/public/:token" element={<PublicDocumentPage />} />
         <Route
           path="/dashboard"
