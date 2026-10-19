@@ -66,7 +66,7 @@ REDIS_URL=
 # Optional backend-only NVIDIA AI
 NVIDIA_API_KEY=
 NVIDIA_API_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_NEMOTRON_MODEL=nvidia/llama-3.3-nemotron-super-49b-v1.5
+NVIDIA_NEMOTRON_MODEL=nvidia/nemotron-3-ultra-550b-a55b
 NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5
 ```
 

@@ -64,7 +64,7 @@ export const runWritingAssistant = async ({
   tone?: string;
   context?: string;
 }) => {
-  const model = process.env.NVIDIA_NEMOTRON_MODEL || "nvidia/llama-3.3-nemotron-super-49b-v1.5";
+  const model = process.env.NVIDIA_NEMOTRON_MODEL || "nvidia/nemotron-3-ultra-550b-a55b";
   const response = await request<{ choices?: Array<{ message?: { content?: string } }> }>("/chat/completions", {
     model,
     messages: [
@@ -80,6 +80,7 @@ export const runWritingAssistant = async ({
     temperature: action === "rewrite" || action === "tone" ? 0.35 : 0.1,
     max_tokens: 1600,
     stream: false,
+    ...(model.startsWith("nvidia/nemotron-3-ultra") ? { chat_template_kwargs: { enable_thinking: false } } : {}),
   });
   const content = response.choices?.[0]?.message?.content?.trim();
   if (!content) throw new Error("Nemotron returned an empty response");
