@@ -1,19 +1,17 @@
-import { useSignIn } from "@clerk/react";
-import { useState } from "react";
-
 type GoogleButtonProps = {
   unavailable?: boolean;
+  disabled?: boolean;
   busy?: boolean;
   onClick?: () => void;
 };
 
-export function GoogleButton({ unavailable = false, busy = false, onClick }: GoogleButtonProps) {
+export function GoogleButton({ unavailable = false, disabled = false, busy = false, onClick }: GoogleButtonProps) {
   return (
     <div className="auth-google-action">
       <button
         type="button"
         className="auth-google-button"
-        disabled={unavailable || busy}
+        disabled={unavailable || disabled || busy}
         aria-describedby={unavailable ? "google-setup-note" : undefined}
         onClick={onClick}
       >
@@ -28,29 +26,4 @@ export function GoogleButton({ unavailable = false, busy = false, onClick }: Goo
       {unavailable ? <p id="google-setup-note" className="auth-google-note">Google sign-in is being set up. You can use email below.</p> : null}
     </div>
   );
-}
-
-export default function GoogleSignInButton() {
-  const { signIn } = useSignIn();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const signInWithGoogle = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const result = await signIn.sso({
-        strategy: "oauth_google",
-        redirectUrl: "/auth/tasks",
-        redirectCallbackUrl: "/sso-callback",
-      });
-      if (result.error) throw result.error;
-    } catch {
-      setError("Google sign-in could not start. Please try again or use email.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return <><GoogleButton busy={busy} onClick={() => void signInWithGoogle()} />{error ? <p className="auth-google-error" role="alert">{error}</p> : null}</>;
 }

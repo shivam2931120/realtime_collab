@@ -5,9 +5,10 @@ import api from "./services/api";
 import { useAuthStore } from "./store/authStore";
 import { useDocStore } from "./store/docStore";
 import BackendErrorModal from "./components/BackendErrorModal";
-import { HandleSSOCallback, RedirectToTasks, SignIn, SignUp } from "@clerk/react";
+import { HandleSSOCallback, RedirectToTasks } from "@clerk/react";
 import { clerkEnabled } from "./services/auth";
-import GoogleSignInButton, { GoogleButton } from "./components/GoogleSignInButton";
+import { GoogleButton } from "./components/GoogleSignInButton";
+import ClerkAuthForm from "./components/ClerkAuthForm";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const DraftsPage = lazy(() => import("./pages/Drafts"));
@@ -197,29 +198,6 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
   );
 };
 
-const ClerkAuthScreen = ({ mode }: { mode: "login" | "register" }) => (
-  <main className="auth-page">
-    <div className="auth-clerk-shell">
-      <a href="/about.html" className="auth-brand"><img src="/favicon.ico" alt="" />Editorial</a>
-      <p className="auth-helper mb-6">A shared workspace for editorial teams to write, review, and publish together.</p>
-      <GoogleSignInButton />
-      <div className="auth-divider"><span>or use email</span></div>
-    {mode === "login" ? (
-      <SignIn routing="hash" signUpUrl="/register" fallbackRedirectUrl="/dashboard" appearance={{ elements: { socialButtons: { display: "none" }, dividerRow: { display: "none" } } }} />
-    ) : (
-      <SignUp routing="hash" signInUrl="/login" fallbackRedirectUrl="/dashboard" appearance={{ elements: { socialButtons: { display: "none" }, dividerRow: { display: "none" } } }} />
-    )}
-    <p className="auth-legal mt-6">
-      <a className="hover:underline" href="/about.html">About</a>
-      <span aria-hidden="true"> · </span>
-      <a className="hover:underline" href="/privacy.html">Privacy Policy</a>
-      <span aria-hidden="true"> · </span>
-      <a className="hover:underline" href="/terms.html">Terms of Service</a>
-    </p>
-    </div>
-  </main>
-);
-
 const GoogleCallbackScreen = () => {
   const navigate = useNavigate();
   return (
@@ -368,9 +346,9 @@ const App = () => {
       <SessionGate />
       <Routes>
         <Route path="/" element={<Navigate to={token ? "/dashboard" : "/login"} replace />} />
-        <Route path="/login" element={clerkEnabled ? <ClerkAuthScreen mode="login" /> : <AuthScreen mode="login" />} />
-        <Route path="/register" element={clerkEnabled ? <ClerkAuthScreen mode="register" /> : <AuthScreen mode="register" />} />
-        <Route path="/reset-password" element={clerkEnabled ? <Navigate to="/login" replace /> : <ResetPasswordScreen />} />
+        <Route path="/login" element={clerkEnabled ? <ClerkAuthForm key="login" mode="login" /> : <AuthScreen mode="login" />} />
+        <Route path="/register" element={clerkEnabled ? <ClerkAuthForm key="register" mode="register" /> : <AuthScreen mode="register" />} />
+        <Route path="/reset-password" element={clerkEnabled ? <ClerkAuthForm key="reset" mode="reset" /> : <ResetPasswordScreen />} />
         <Route path="/sso-callback" element={clerkEnabled ? <GoogleCallbackScreen /> : <Navigate to="/login" replace />} />
         <Route path="/auth/tasks" element={clerkEnabled ? <RedirectToTasks /> : <Navigate to="/login" replace />} />
         <Route path="/public/:token" element={<PublicDocumentPage />} />
