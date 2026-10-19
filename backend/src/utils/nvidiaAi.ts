@@ -30,7 +30,7 @@ const request = async <T>(path: string, body: Record<string, unknown>): Promise<
 };
 
 export const createEmbeddings = async (input: string[], inputType: "query" | "passage") => {
-  const model = process.env.NVIDIA_EMBEDDING_MODEL || "nvidia/nv-embedqa-e5-v5";
+  const model = process.env.NVIDIA_EMBEDDING_MODEL || "nvidia/nemotron-3-embed-1b";
   const response = await request<{ data?: Array<{ index: number; embedding: number[] }> }>("/embeddings", {
     model,
     input: input.map((item) => item.slice(0, 12_000)),
