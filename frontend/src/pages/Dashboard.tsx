@@ -2,6 +2,7 @@ import axios from "axios";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Button from "@mui/material/Button";
+import RenameDocumentDialog from "../components/RenameDocumentDialog";
 import WorkspaceLayout from "../components/WorkspaceLayout";
 import api from "../services/api";
 import { DocItem, FolderItem, useDocStore } from "../store/docStore";
@@ -97,9 +98,11 @@ type FolderNode = FolderItem & {
 const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : "Not sent");
 
 const DashboardPage = () => {
+  const [renameTarget, setRenameTarget] = useState<DocItem | null>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const docs = useDocStore((state) => state.docs);
+  const documentTitles = useMemo(() => new Map(docs.map(document => [document.id, document.title])), [docs]);
   const setDocs = useDocStore((state) => state.setDocs);
   const upsertDoc = useDocStore((state) => state.upsertDoc);
   const removeDoc = useDocStore((state) => state.removeDoc);
@@ -1079,7 +1082,7 @@ const DashboardPage = () => {
                 <button
                   type="button"
                   onClick={() => navigate(`/editor/${document.id}`)}
-                  className="document-card w-full overflow-hidden rounded-lg border border-outline bg-surface-container text-left transition hover:border-outline hover:bg-surface-container-high"
+                  className={`document-card w-full overflow-hidden rounded-lg border border-outline bg-surface-container text-left transition hover:border-outline hover:bg-surface-container-high ${viewMode === "list" ? "pt-10" : ""}`}
                 >
                   <div className={`${viewMode === "grid" ? "flex h-16 items-center justify-center border-b border-outline" : "hidden"} bg-surface-container-low text-on-surface-variant`}><span className="material-symbols-outlined text-2xl" aria-hidden="true">description</span></div>
                   <div className="p-4">
@@ -1162,6 +1165,15 @@ const DashboardPage = () => {
                     <span className="material-symbols-outlined text-[17px]">push_pin</span>
                   </button>
                 </div>
+                {canOrganizeDocument(document.role) && <button
+                  type="button"
+                  title="Rename document"
+                  aria-label={`Rename document: ${document.title}`}
+                  onClick={event => { event.stopPropagation(); setRenameTarget(document); }}
+                  onPointerDown={event => event.stopPropagation()}
+                  draggable={false}
+                  className="absolute right-11 top-2 flex h-8 w-8 items-center justify-center rounded border border-outline bg-surface text-on-surface-variant transition hover:bg-surface-container-high hover:text-accent"
+                ><span className="material-symbols-outlined text-[16px]" aria-hidden="true">edit</span></button>}
                 {/* Delete doc button — only for owner, visible on hover */}
                 {document.role === "owner" && (
                   <button
@@ -1215,7 +1227,7 @@ const DashboardPage = () => {
                   onClick={() => navigate(`/editor/${document.id}`)}
                   className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
                 >
-                  <p className="truncate text-sm font-semibold text-white">{document.title}</p>
+                  <p className="truncate text-sm font-semibold text-white">{documentTitles.get(document.id) ?? document.title}</p>
                   <p className="mt-1 text-[10px] text-on-surface-variant">{new Date(document.updatedAt).toLocaleString()}</p>
                 </button>
               ))}
@@ -1235,7 +1247,7 @@ const DashboardPage = () => {
                   onClick={() => navigate(`/editor/${item.documentId}`)}
                   className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
                 >
-                  <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+                  <p className="truncate text-sm font-semibold text-white">{documentTitles.get(item.documentId) ?? item.title}</p>
                   <p className="mt-1 truncate text-[10px] text-on-surface-variant">{item.actor.email}</p>
                 </button>
               ))}
@@ -1255,7 +1267,7 @@ const DashboardPage = () => {
                   onClick={() => navigate(`/editor/${comment.documentId}`)}
                   className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
                 >
-                  <p className="truncate text-sm font-semibold text-white">{comment.title}</p>
+                  <p className="truncate text-sm font-semibold text-white">{documentTitles.get(comment.documentId) ?? comment.title}</p>
                   <p className="mt-1 line-clamp-1 text-[10px] text-on-surface-variant">{comment.body}</p>
                 </button>
               ))}
@@ -1270,7 +1282,7 @@ const DashboardPage = () => {
             <div className="space-y-2">
               {(activityOverview?.pendingInvites || []).slice(0, 4).map((invite) => (
                 <div key={`pending-${invite.documentId}-${invite.userId}`} className="rounded bg-surface-container-high px-3 py-2">
-                  <p className="truncate text-sm font-semibold text-white">{invite.title}</p>
+                  <p className="truncate text-sm font-semibold text-white">{documentTitles.get(invite.documentId) ?? invite.title}</p>
                   <p className="mt-1 truncate text-[10px] text-on-surface-variant">{invite.email}</p>
                 </div>
               ))}
@@ -1339,7 +1351,7 @@ const DashboardPage = () => {
                 <div key={key} className="rounded border border-outline bg-surface p-3">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{invite.title}</p>
+                      <p className="truncate text-sm font-semibold text-white">{documentTitles.get(invite.documentId) ?? invite.title}</p>
                       <p className="mt-1 truncate text-xs text-on-surface-variant">{invite.email} · {invite.role}</p>
                       <p className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
                         {invite.invitationStatus} · {invite.inviteEmailStatus || "queued"} · {formatDateTime(invite.lastInviteSentAt)}
@@ -1387,6 +1399,8 @@ const DashboardPage = () => {
           </p>
         </div>
       </div>
+
+      {renameTarget && <RenameDocumentDialog document={renameTarget} onClose={() => setRenameTarget(null)} />}
 
       {/* ── Create Document Modal ─────────────────────────────── */}
       {isCreateOpen ? (

@@ -25,6 +25,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { connectSocket, disconnectSocket } from "../services/socket";
 import { reportSocketBackendError } from "../services/backendErrors";
+import RenameDocumentForm from "../components/RenameDocumentForm";
+import { renameDocument } from "../services/renameDocument";
 import WorkspaceSidebar from "../components/WorkspaceSidebar";
 import EditorCommentCard from "../components/EditorCommentCard";
 import { DocItem, useDocStore } from "../store/docStore";
@@ -400,6 +402,9 @@ const EditorPage = () => {
   const [savingTags, setSavingTags] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [titleInput, setTitleInput] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleButtonRef = useRef<HTMLButtonElement>(null);
+  const closeTitleEditor = () => { setEditingTitle(false); requestAnimationFrame(() => titleButtonRef.current?.focus()); };
   const [openMenu, setOpenMenu] = useState<null | "file" | "edit" | "view">(null);
   const [showComments, setShowComments] = useState(true);
   const [wideCanvas, setWideCanvas] = useState(false);
@@ -1544,11 +1549,8 @@ const EditorPage = () => {
     setRenaming(true);
 
     try {
-      const response = await api.put<{ document: DocItem }>(`/docs/${id}`, {
-        title: titleInput.trim(),
-      });
-      setActiveDoc(response.data.document);
-      upsertDoc(response.data.document);
+      const document = await renameDocument(id, titleInput);
+      setTitleInput(document.title);
       setOpenMenu(null);
     } catch (requestError) {
       if (axios.isAxiosError(requestError)) {
@@ -2782,7 +2784,15 @@ const EditorPage = () => {
               <div ref={editorSurfaceRef} className="editor-canvas relative overflow-hidden rounded-lg">
                 <div className="editor-canvas-heading border-b border-outline px-6 pb-6 pt-8 sm:px-12 md:px-14 md:pt-12">
                   <p className="mb-3 text-xs text-on-surface-variant">Document</p>
-                  <h2 className="text-3xl font-semibold tracking-tight text-on-surface">{activeDoc?.title}</h2>
+                  {editingTitle && activeDoc ? (
+                    <RenameDocumentForm documentId={activeDoc.id} title={activeDoc.title} canvas onSaved={title => { setTitleInput(title); closeTitleEditor(); }} onCancel={closeTitleEditor} />
+                  ) : (
+                    <h2 className="text-3xl font-semibold tracking-tight text-on-surface">
+                      {canEditDocument(activeDoc?.role) ? <button ref={titleButtonRef} type="button" onClick={() => setEditingTitle(true)} className="document-title-button" aria-label={`Rename document: ${activeDoc?.title}`} title="Rename document">
+                        <span>{activeDoc?.title}</span><span className="material-symbols-outlined" aria-hidden="true">edit</span>
+                      </button> : activeDoc?.title}
+                    </h2>
+                  )}
                 </div>
 
                 {!editor ? (

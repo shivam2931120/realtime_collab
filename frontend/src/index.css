@@ -147,3 +147,10 @@ kbd { border: 1px solid var(--color-border); border-radius: 4px; padding: .05rem
 @media (min-width: 1024px) { .editor-workspace.is-focus-mode .workspace-sidebar { display: none; } }
 
 @media (max-width: 360px) { .workspace-brand > span { display: none; } }
+
+/* Inline document naming shares the existing save endpoint and permissions. */
+.document-title-button { display: inline-flex; align-items: center; gap: .65rem; max-width: 100%; border-radius: var(--radius-control); text-align: left; }
+.document-title-button > span:first-child { overflow-wrap: anywhere; }
+.document-title-button > .material-symbols-outlined { flex-shrink: 0; color: var(--color-subtle); font-size: 18px; opacity: .55; transition: opacity .15s, color .15s; }
+.document-title-button:hover > .material-symbols-outlined, .document-title-button:focus-visible > .material-symbols-outlined { opacity: 1; color: var(--color-primary-text); }
+.document-title-input { font-size: 1.5rem; font-weight: 600; letter-spacing: -.025em; }
