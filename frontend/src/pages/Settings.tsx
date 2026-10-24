@@ -45,15 +45,15 @@ const SettingsPage = () => {
           title: "System status",
           body: (
             <div className="mt-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center justify-between border-b border-outline pb-3">
                 <span className="text-sm text-on-surface-variant">API service</span>
-                <span className={health?.status === "ok" ? "text-sm font-semibold text-primary" : "text-sm font-semibold text-error"}>
+                <span className={health?.status === "ok" ? "text-sm font-semibold text-success" : "text-sm font-semibold text-error"}>
                   {healthLoading ? "Checking" : health?.status === "ok" ? "Operational" : "Unavailable"}
                 </span>
               </div>
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center justify-between border-b border-outline pb-3">
                 <span className="text-sm text-on-surface-variant">Database</span>
-                <span className={health?.database?.connected ? "text-sm font-semibold text-primary" : "text-sm font-semibold text-error"}>
+                <span className={health?.database?.connected ? "text-sm font-semibold text-success" : "text-sm font-semibold text-error"}>
                   {healthLoading ? "Checking" : health?.database?.connected ? `${health.database.latencyMs} ms` : "Unavailable"}
                 </span>
               </div>
@@ -74,11 +74,11 @@ const SettingsPage = () => {
           body: (
             <form className="mt-6 space-y-4" onSubmit={handleProfileSave}>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Email</p>
+                <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">Email</p>
                 <p className="mt-2 text-sm text-white">{email}</p>
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="display-name">
+                <label className="text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="display-name">
                   Display name
                 </label>
                 <input
@@ -90,7 +90,7 @@ const SettingsPage = () => {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="avatar-color">
+                <label className="text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="avatar-color">
                   Avatar color
                 </label>
                 <div className="mt-2 flex items-center gap-3">
@@ -99,7 +99,7 @@ const SettingsPage = () => {
                     type="color"
                     value={avatarColor}
                     onChange={(event) => setAvatarColor(event.target.value)}
-                    className="h-10 w-14 rounded border border-white/10 bg-transparent p-1"
+                    className="h-10 w-14 rounded border border-outline bg-transparent p-1"
                   />
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold uppercase text-white"
@@ -109,14 +109,14 @@ const SettingsPage = () => {
                   </div>
                 </div>
               </div>
-              <div className="pt-4 border-t border-white/10">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Email Preferences</p>
+              <div className="pt-4 border-t border-outline">
+                <p className="text-[11px] font-medium tracking-normal text-on-surface-variant mb-3">Email Preferences</p>
                 <label className="flex items-center space-x-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={emailNotifications}
                     onChange={(event) => setEmailNotifications(event.target.checked)}
-                    className="form-checkbox bg-transparent border-white/20 text-primary rounded"
+                    className="form-checkbox bg-transparent border-white/20 text-accent rounded"
                   />
                   <span className="text-sm text-white">Email me when a document is shared with me</span>
                 </label>
@@ -125,7 +125,7 @@ const SettingsPage = () => {
                 <button type="submit" className="emerald-primary-button">
                   Save profile
                 </button>
-                {saved ? <span className="text-xs font-semibold text-primary">Saved</span> : null}
+                {saved ? <span className="text-xs font-semibold text-accent">Saved</span> : null}
               </div>
             </form>
           ),
@@ -140,15 +140,15 @@ const SettingsPage = () => {
       {sections.length ? (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           {sections.map((section) => (
-            <section key={section.key} className="rounded border border-white/5 bg-surface-container p-6">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">{section.eyebrow}</p>
+            <section key={section.key} className="rounded border border-outline bg-surface-container p-6">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">{section.eyebrow}</p>
               <h2 className="mt-3 text-2xl font-bold text-white">{section.title}</h2>
               {section.body}
             </section>
           ))}
         </div>
       ) : (
-        <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+        <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
           No settings matched your search.
         </div>
       )}

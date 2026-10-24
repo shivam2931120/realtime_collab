@@ -40,7 +40,7 @@ const CollectionsPage = () => {
   return (
     <WorkspaceLayout pageLabel="Workspace Collections" title="Collections">
       {loading ? (
-        <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+        <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
           Loading collections...
         </div>
       ) : (
@@ -60,16 +60,16 @@ const CollectionsPage = () => {
                       key={doc.id}
                       type="button"
                       onClick={() => navigate(`/editor/${doc.id}`)}
-                      className="rounded border border-white/5 bg-surface-container p-5 text-left transition hover:bg-surface-container-high"
+                      className="rounded border border-outline bg-surface-container p-5 text-left transition hover:bg-surface-container-high"
                     >
                       <h3 className="text-lg font-bold text-white">{doc.title}</h3>
                       <p className="mt-2 text-sm text-on-surface-variant">Owner: {doc.owner.email}</p>
-                      <p className="mt-4 text-xs text-primary">{doc.role}</p>
+                      <p className="mt-4 text-xs text-accent">{doc.role}</p>
                     </button>
                   ))}
                 </div>
               ) : (
-                <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+                <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
                   No documents in this collection.
                 </div>
               )}

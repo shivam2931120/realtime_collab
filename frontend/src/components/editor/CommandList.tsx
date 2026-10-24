@@ -50,7 +50,7 @@ const CommandList = forwardRef((props: any, ref) => {
   }
 
   return (
-    <div className="flex w-80 flex-col gap-1 rounded-xl border border-white/5 bg-surface-container-highest p-2 shadow-2xl text-on-surface">
+    <div className="flex w-80 flex-col gap-1 rounded-xl border border-outline bg-surface-container-highest p-2 shadow-2xl text-on-surface">
       {props.items.map((item: any, index: number) => (
         <button
           className={`flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-all ${

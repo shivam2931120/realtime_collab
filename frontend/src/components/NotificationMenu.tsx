@@ -107,7 +107,7 @@ const NotificationMenu = () => {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="relative rounded p-2 text-[#a3a3a3] transition-colors duration-200 hover:bg-[#201f1f] active:scale-90"
+        className="relative rounded p-2 text-on-surface-variant transition-colors duration-200 hover:bg-surface-container-high active:scale-90"
       >
         <span className="material-symbols-outlined">notifications</span>
         {unreadCount > 0 ? (
@@ -118,7 +118,7 @@ const NotificationMenu = () => {
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-12 z-[80] w-[min(360px,calc(100vw-1rem))] rounded-lg border border-white/10 bg-surface-container p-4 shadow-2xl">
+        <div className="absolute right-0 top-12 z-[80] w-[min(360px,calc(100vw-1rem))] rounded-lg border border-outline bg-surface-container p-4 shadow-2xl">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">
@@ -129,20 +129,20 @@ const NotificationMenu = () => {
             <button
               type="button"
               onClick={() => handleMarkAllRead().catch(console.error)}
-              className="text-[10px] font-bold uppercase tracking-widest text-primary"
+              className="text-[11px] font-medium tracking-normal text-accent"
             >
               Mark all read
             </button>
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-1 rounded border border-white/5 bg-surface-container-low p-1">
+          <div className="mb-4 grid grid-cols-2 gap-1 rounded border border-outline bg-surface-container-low p-1">
             {(["all", "unread"] as const).map((item) => (
               <button
                 key={item}
                 type="button"
                 onClick={() => setFilter(item)}
-                className={`rounded px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition ${
-                  filter === item ? "bg-primary/20 text-primary" : "text-on-surface-variant hover:text-white"
+                className={`rounded px-2 py-1 text-[11px] font-medium tracking-normal transition ${
+                  filter === item ? "bg-primary/20 text-accent" : "text-on-surface-variant hover:text-white"
                 }`}
               >
                 {item === "all" ? "All" : `Unread ${unreadCount}`}
@@ -157,7 +157,7 @@ const NotificationMenu = () => {
                   key={notification.id}
                   className={`w-full rounded border p-3 text-left transition hover:border-primary/40 ${
                     notification.isRead
-                      ? "border-white/5 bg-surface"
+                      ? "border-outline bg-surface"
                       : "border-primary/30 bg-primary/5"
                   }`}
                 >
@@ -190,7 +190,7 @@ const NotificationMenu = () => {
                     <span>{new Date(notification.createdAt).toLocaleString()}</span>
                     <Link
                       to={`/editor/${notification.document.id}`}
-                      className="text-primary"
+                      className="text-accent"
                       onClick={(event) => {
                         event.stopPropagation();
                         setOpen(false);
@@ -205,7 +205,7 @@ const NotificationMenu = () => {
                 </div>
               ))
             ) : (
-              <div className="rounded border border-white/5 bg-surface p-4 text-sm text-on-surface-variant">
+              <div className="rounded border border-outline bg-surface p-4 text-sm text-on-surface-variant">
                 No notifications yet.
               </div>
             )}
@@ -223,7 +223,7 @@ const NotificationMenu = () => {
           className="editorial-panel fixed right-4 top-16 z-[110] max-w-[min(360px,calc(100vw-2rem))] rounded-lg border border-primary/30 p-4 text-left shadow-2xl"
         >
           <div className="flex items-start gap-3">
-            <span className="material-symbols-outlined text-primary">notifications</span>
+            <span className="material-symbols-outlined text-accent">notifications</span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">{toast.title}</p>
               <p className="mt-1 line-clamp-2 text-xs text-on-surface-variant">{toast.message}</p>

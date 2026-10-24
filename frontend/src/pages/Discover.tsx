@@ -17,7 +17,7 @@ const HighlightText = ({ value, query }: { value: string; query: string }) => {
     <>
       {parts.map((part, index) =>
         part.toLowerCase() === query.toLowerCase() ? (
-          <mark key={`${part}-${index}`} className="rounded bg-primary/25 px-0.5 text-primary">
+          <mark key={`${part}-${index}`} className="rounded bg-primary/25 px-0.5 text-accent">
             {part}
           </mark>
         ) : (
@@ -132,7 +132,7 @@ const DiscoverPage = () => {
   return (
     <WorkspaceLayout pageLabel="Search & Index" title="Discover">
       <div className="space-y-6">
-        <section className="rounded border border-white/5 bg-surface-container p-5">
+        <section className="rounded border border-outline bg-surface-container p-5">
           <form className="space-y-4" onSubmit={handleSearchSubmit}>
             <div className="flex flex-col gap-3 md:flex-row">
               <input
@@ -149,7 +149,7 @@ const DiscoverPage = () => {
               <button
                 type="button"
                 onClick={() => setSearchMode((current) => current === "semantic" ? "keyword" : "semantic")}
-                className={`rounded-full border px-3 py-1 text-xs transition ${searchMode === "semantic" ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-on-surface-variant"}`}
+                className={`rounded-full border px-3 py-1 text-xs transition ${searchMode === "semantic" ? "border-primary bg-primary/20 text-accent" : "border-outline text-on-surface-variant"}`}
               >
                 {searchMode === "semantic" ? "Meaning search on" : "Use meaning search"}
               </button>
@@ -160,8 +160,8 @@ const DiscoverPage = () => {
                   onClick={() => toggleTag(tag.name)}
                   className={`rounded-full border px-3 py-1 text-xs transition ${
                     selectedTags.includes(tag.name)
-                      ? "border-primary bg-primary/20 text-primary"
-                      : "border-white/10 bg-surface-container-high text-on-surface-variant"
+                      ? "border-primary bg-primary/20 text-accent"
+                      : "border-outline bg-surface-container-high text-on-surface-variant"
                   }`}
                 >
                   #{tag.name} ({tag.count})
@@ -171,7 +171,7 @@ const DiscoverPage = () => {
           </form>
         </section>
 
-        <section className="rounded border border-white/5 bg-surface-container p-5">
+        <section className="rounded border border-outline bg-surface-container p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Indexed documents</h2>
             <span className="text-xs uppercase tracking-widest text-on-surface-variant">{totalLabel} · {resolvedMode}</span>
@@ -180,7 +180,7 @@ const DiscoverPage = () => {
           {error ? <p className="mb-4 text-sm text-error">{error}</p> : null}
 
           {loading ? (
-            <div className="rounded border border-white/5 bg-surface-container-high p-4 text-sm text-on-surface-variant">
+            <div className="rounded border border-outline bg-surface-container-high p-4 text-sm text-on-surface-variant">
               Running index query...
             </div>
           ) : results.length ? (
@@ -190,13 +190,13 @@ const DiscoverPage = () => {
                   key={item.id}
                   type="button"
                   onClick={() => navigate(`/editor/${item.id}`)}
-                  className="w-full rounded border border-white/10 bg-surface-container-high p-4 text-left transition hover:border-primary/40"
+                  className="w-full rounded border border-outline bg-surface-container-high p-4 text-left transition hover:border-primary/40"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <h3 className="text-base font-bold text-white">
                       <HighlightText value={item.title} query={query.trim()} />
                     </h3>
-                    <span className="text-[10px] uppercase tracking-widest text-primary">
+                    <span className="text-[10px] uppercase tracking-widest text-accent">
                       {new Date(item.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
@@ -211,8 +211,8 @@ const DiscoverPage = () => {
                     </div>
                   ) : null}
                   {item.matchedComments?.length ? (
-                    <div className="mt-3 rounded border border-white/5 bg-surface-container p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Comment matches</p>
+                    <div className="mt-3 rounded border border-outline bg-surface-container p-3">
+                      <p className="text-[11px] font-medium tracking-normal text-accent">Comment matches</p>
                       <div className="mt-2 space-y-1">
                         {item.matchedComments.slice(0, 2).map((comment) => (
                           <p key={comment.id} className="line-clamp-1 text-xs text-on-surface-variant">
@@ -240,7 +240,7 @@ const DiscoverPage = () => {
               ))}
             </div>
           ) : (
-            <div className="rounded border border-white/5 bg-surface-container-high p-4 text-sm text-on-surface-variant">
+            <div className="rounded border border-outline bg-surface-container-high p-4 text-sm text-on-surface-variant">
               No matching documents found.
             </div>
           )}

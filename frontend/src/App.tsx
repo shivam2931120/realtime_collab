@@ -144,7 +144,7 @@ const AuthScreen = ({ mode }: { mode: "login" | "register" }) => {
             />
           </div>
           {error ? <p className="text-sm text-error">{error}</p> : null}
-          {resetSent ? <p className="text-sm text-primary">Reset instructions sent if the account exists.</p> : null}
+          {resetSent ? <p className="text-sm text-accent">Reset instructions sent if the account exists.</p> : null}
           <button type="submit" disabled={submitting} className="auth-primary-button">
             {submitting ? "Please wait..." : submitLabel}
           </button>
@@ -263,7 +263,7 @@ const ResetPasswordScreen = () => {
             placeholder="New password"
           />
           {error ? <p className="text-sm text-error">{error}</p> : null}
-          {status ? <p className="text-sm text-primary">{status}</p> : null}
+          {status ? <p className="text-sm text-accent">{status}</p> : null}
           <button type="submit" disabled={submitting || !token} className="auth-primary-button">
             {submitting ? "Saving..." : "Update password"}
           </button>
@@ -329,7 +329,7 @@ const App = () => {
 
   if (!hydrated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">
+      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-on-surface-variant">
         Loading session...
       </div>
     );
@@ -338,7 +338,7 @@ const App = () => {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">
+        <div className="flex min-h-screen items-center justify-center bg-background text-sm text-on-surface-variant">
           Loading...
         </div>
       }

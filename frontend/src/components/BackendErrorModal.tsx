@@ -37,7 +37,7 @@ const BackendErrorModal = () => {
             <span className="material-symbols-outlined">cloud_off</span>
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-error">
+            <p className="text-[11px] font-medium tracking-wide text-error">
               {isNotFound ? "404" : backendError.status ? `HTTP ${backendError.status}` : "Connection error"}
             </p>
             <h2 id="backend-error-title" className="mt-1 text-lg font-bold text-white">{title}</h2>

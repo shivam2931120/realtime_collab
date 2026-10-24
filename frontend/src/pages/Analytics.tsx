@@ -56,7 +56,7 @@ const AnalyticsPage = () => {
   return (
     <WorkspaceLayout pageLabel="Engagement Insights" title="Analytics Dashboard">
       <div className="space-y-6">
-        <section className="flex flex-wrap items-center gap-3 rounded border border-white/5 bg-surface-container p-4">
+        <section className="flex flex-wrap items-center gap-3 rounded border border-outline bg-surface-container p-4">
           {[7, 30, 90].map((range) => (
             <button
               key={range}
@@ -77,14 +77,14 @@ const AnalyticsPage = () => {
         {error ? <div className="rounded border border-error/20 bg-error/10 p-3 text-sm text-error">{error}</div> : null}
 
         {loading ? (
-          <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+          <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
             Loading analytics...
           </div>
         ) : data ? (
           <>
             <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
               {summaryItems.map((item) => (
-                <article key={item.label} className="rounded border border-white/5 bg-surface-container p-4">
+                <article key={item.label} className="rounded border border-outline bg-surface-container p-4">
                   <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">{item.label}</p>
                   <p className="mt-2 text-2xl font-bold text-white">{formatNumber(item.value)}</p>
                 </article>
@@ -92,7 +92,7 @@ const AnalyticsPage = () => {
             </section>
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <article className="rounded border border-white/5 bg-surface-container p-5">
+              <article className="rounded border border-outline bg-surface-container p-5">
                 <h2 className="text-lg font-bold text-white">Activity timeline</h2>
                 <div className="mt-4 space-y-2">
                   {data.timeline.length ? (
@@ -114,12 +114,12 @@ const AnalyticsPage = () => {
                 </div>
               </article>
 
-              <article className="rounded border border-white/5 bg-surface-container p-5">
+              <article className="rounded border border-outline bg-surface-container p-5">
                 <h2 className="text-lg font-bold text-white">Top active docs</h2>
                 <div className="mt-4 space-y-3">
                   {data.topDocs.length ? (
                     data.topDocs.map((doc) => (
-                      <div key={doc.documentId} className="rounded border border-white/10 bg-surface-container-high p-3">
+                      <div key={doc.documentId} className="rounded border border-outline bg-surface-container-high p-3">
                         <p className="text-sm font-semibold text-white">{doc.title}</p>
                         <p className="mt-1 text-xs text-on-surface-variant">{doc.events} tracked events</p>
                       </div>

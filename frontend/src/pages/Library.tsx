@@ -124,7 +124,7 @@ const LibraryPage = () => {
       <div className="space-y-6">
         {error ? <div className="rounded border border-error/20 bg-error/10 p-3 text-sm text-error">{error}</div> : null}
 
-        <section className="rounded border border-white/5 bg-surface-container p-5">
+        <section className="rounded border border-outline bg-surface-container p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Templates</h2>
             <button type="button" onClick={() => fetchTemplates().catch(console.error)} className="emerald-muted-button">
@@ -133,16 +133,16 @@ const LibraryPage = () => {
           </div>
 
           {loadingTemplates ? (
-            <div className="rounded border border-white/5 bg-surface-container-high p-4 text-sm text-on-surface-variant">
+            <div className="rounded border border-outline bg-surface-container-high p-4 text-sm text-on-surface-variant">
               Loading templates...
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {templates.map((template) => (
-                <div key={template.id} className="rounded border border-white/10 bg-surface-container-high p-4">
+                <div key={template.id} className="rounded border border-outline bg-surface-container-high p-4">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <h3 className="text-base font-bold text-white">{template.title}</h3>
-                    <span className="text-[10px] uppercase tracking-widest text-primary">
+                    <span className="text-[10px] uppercase tracking-widest text-accent">
                       {template.isSystem ? "System" : "Custom"}
                     </span>
                   </div>
@@ -151,7 +151,7 @@ const LibraryPage = () => {
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {template.tags.map((tag) => (
-                      <span key={`${template.id}-${tag}`} className="rounded-full bg-primary/10 px-2 py-1 text-[11px] text-primary">
+                      <span key={`${template.id}-${tag}`} className="rounded-full bg-primary/10 px-2 py-1 text-[11px] text-accent">
                         #{tag}
                       </span>
                     ))}
@@ -170,7 +170,7 @@ const LibraryPage = () => {
         </section>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <form onSubmit={handleCreateTemplate} className="rounded border border-white/5 bg-surface-container p-5 space-y-4">
+          <form onSubmit={handleCreateTemplate} className="rounded border border-outline bg-surface-container p-5 space-y-4">
             <h2 className="text-lg font-bold text-white">Create template</h2>
             <input
               className="emerald-input"
@@ -196,7 +196,7 @@ const LibraryPage = () => {
             </button>
           </form>
 
-          <form onSubmit={handleImport} className="rounded border border-white/5 bg-surface-container p-5 space-y-4">
+          <form onSubmit={handleImport} className="rounded border border-outline bg-surface-container p-5 space-y-4">
             <h2 className="text-lg font-bold text-white">Import document</h2>
             <input
               className="emerald-input"

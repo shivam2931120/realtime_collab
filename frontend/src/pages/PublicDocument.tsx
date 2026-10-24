@@ -56,23 +56,23 @@ const PublicDocument = () => {
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-on-background sm:px-8 md:px-16">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-8 flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="mb-8 flex items-center justify-between border-b border-outline pb-4">
           <span className="text-lg font-bold uppercase tracking-tighter text-white">Editorial</span>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Public read-only view</span>
+          <span className="text-[11px] font-medium tracking-wide text-accent">Public read-only view</span>
         </div>
         {loading ? <p className="text-sm text-on-surface-variant">Loading document...</p> : null}
         {error ? (
           <section className="rounded border border-error/30 bg-surface-container p-8">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-error">404</p>
+            <p className="text-[11px] font-medium tracking-wide text-error">404</p>
             <h1 className="mt-2 text-2xl font-bold text-white">Document link unavailable</h1>
             <p className="mt-3 text-sm text-on-surface-variant">{error}</p>
           </section>
         ) : null}
         {document ? (
-          <article className="rounded border border-white/10 bg-white p-6 text-[#131313] shadow-2xl sm:p-10 md:p-16">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#16805b]">Shared by {document.ownerEmail}</p>
+          <article className="rounded border border-outline bg-surface p-6 text-on-surface shadow-2xl sm:p-10 md:p-16">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Shared by {document.ownerEmail}</p>
             <h1 className="mt-3 text-3xl font-bold sm:text-5xl">{document.title}</h1>
-            <p className="mt-3 text-xs text-[#737373]">Read-only until {new Date(document.expiresAt).toLocaleString()}</p>
+            <p className="mt-3 text-xs text-on-surface-variant">Read-only until {new Date(document.expiresAt).toLocaleString()}</p>
             <div className="editorial-editor mt-10" dangerouslySetInnerHTML={{ __html: sanitizeDocumentHtml(document.content) }} />
           </article>
         ) : null}

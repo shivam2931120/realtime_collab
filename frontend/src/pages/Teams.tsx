@@ -135,17 +135,17 @@ const TeamsPage = () => {
               { label: "Commenters", value: accessOverview.summary.commenters || 0 },
               { label: "Viewers", value: accessOverview.summary.viewers },
             ].map((item) => (
-              <div key={item.label} className="rounded border border-white/5 bg-surface-container p-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{item.label}</p>
+              <div key={item.label} className="rounded border border-outline bg-surface-container p-4">
+                <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">{item.label}</p>
                 <p className="mt-3 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
               </div>
             ))}
           </section>
 
-          <section className="mb-8 rounded border border-white/5 bg-surface-container p-4">
+          <section className="mb-8 rounded border border-outline bg-surface-container p-4">
             <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Access Control</p>
+                <p className="text-[11px] font-medium tracking-wide text-accent">Access Control</p>
                 <h2 className="mt-1 text-xl font-bold text-white">Permissions overview</h2>
               </div>
               <span className="text-xs text-on-surface-variant">{filteredPermissions.length} visible grants</span>
@@ -153,7 +153,7 @@ const TeamsPage = () => {
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="text-[10px] uppercase tracking-widest text-on-surface-variant">
-                  <tr className="border-b border-white/5">
+                  <tr className="border-b border-outline">
                     <th className="py-3 pr-4 font-bold">Document</th>
                     <th className="py-3 pr-4 font-bold">User</th>
                     <th className="py-3 pr-4 font-bold">Role</th>
@@ -163,11 +163,11 @@ const TeamsPage = () => {
                 </thead>
                 <tbody>
                   {filteredPermissions.slice(0, 40).map((permission) => (
-                    <tr key={`${permission.documentId}-${permission.userId}-${permission.role}`} className="border-b border-white/5">
+                    <tr key={`${permission.documentId}-${permission.userId}-${permission.role}`} className="border-b border-outline">
                       <td className="max-w-[220px] truncate py-3 pr-4 text-white">{permission.title}</td>
                       <td className="max-w-[260px] truncate py-3 pr-4 text-on-surface-variant">{permission.email}</td>
                       <td className="py-3 pr-4">
-                        <span className="rounded bg-primary/15 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                        <span className="rounded bg-primary/15 px-2 py-1 text-[11px] font-medium tracking-normal text-accent">
                           {permission.role}
                         </span>
                       </td>
@@ -185,17 +185,17 @@ const TeamsPage = () => {
           </section>
 
           {auditEvents.length ? (
-            <section className="mb-8 rounded border border-white/5 bg-surface-container p-4">
+            <section className="mb-8 rounded border border-outline bg-surface-container p-4">
               <div className="mb-4 flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Audit trail</p>
+                  <p className="text-[11px] font-medium tracking-wide text-accent">Audit trail</p>
                   <h2 className="mt-1 text-xl font-bold text-white">Permission activity</h2>
                 </div>
                 <span className="text-xs text-on-surface-variant">Latest {auditEvents.length}</span>
               </div>
               <div className="space-y-2">
                 {auditEvents.slice(0, 8).map((event) => (
-                  <div key={event.id} className="flex flex-col gap-1 border-b border-white/5 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                  <div key={event.id} className="flex flex-col gap-1 border-b border-outline py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-white">{event.type.replace(/^document_/, "").replace(/_/g, " ")} · {event.documentTitle}</span>
                     <span className="text-on-surface-variant">{event.actorEmail} · {new Date(event.createdAt).toLocaleString()}</span>
                   </div>
@@ -224,7 +224,7 @@ const TeamsPage = () => {
       </div>
 
       {loading ? (
-        <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+        <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
           Loading team network...
         </div>
       ) : documentsByRole.length ? (
@@ -233,7 +233,7 @@ const TeamsPage = () => {
             const members = membersForDoc(doc);
 
             return (
-              <div key={doc.id} className="rounded border border-white/5 bg-surface-container p-5">
+              <div key={doc.id} className="rounded border border-outline bg-surface-container p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-white">{doc.title}</h3>
@@ -241,24 +241,24 @@ const TeamsPage = () => {
                       {members.length} member{members.length === 1 ? "" : "s"} working on this doc
                     </p>
                   </div>
-                  <span className="text-xs uppercase tracking-widest text-primary">{doc.role}</span>
+                  <span className="text-xs uppercase tracking-widest text-accent">{doc.role}</span>
                 </div>
 
                 <div className="mt-4 space-y-3">
                   {members.map((member) => (
                     <div
                       key={`${doc.id}-${member.email}`}
-                      className="flex items-center justify-between rounded border border-white/10 bg-surface-container-high p-3"
+                      className="flex items-center justify-between rounded border border-outline bg-surface-container-high p-3"
                     >
                       <div className="flex items-center gap-3">
                         <img
                           src={avatarForEmail(member.email)}
                           alt={member.email}
-                          className="h-8 w-8 rounded-full border border-white/10 bg-surface object-cover"
+                          className="h-8 w-8 rounded-full border border-outline bg-surface object-cover"
                         />
                         <span className="text-sm text-white">{member.email}</span>
                       </div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                      <span className="text-[11px] font-medium tracking-normal text-accent">
                         {member.role}
                       </span>
                     </div>
@@ -271,7 +271,7 @@ const TeamsPage = () => {
                       key={`${doc.id}-${member.email}-chip`}
                       src={avatarForEmail(member.email)}
                       alt={member.email}
-                      className="h-6 w-6 rounded-full border border-white/10 bg-surface object-cover"
+                      className="h-6 w-6 rounded-full border border-outline bg-surface object-cover"
                       title={member.email}
                     />
                   ))}
@@ -286,7 +286,7 @@ const TeamsPage = () => {
           })}
         </div>
       ) : (
-        <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+        <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
           No documents found in this view.
         </div>
       )}

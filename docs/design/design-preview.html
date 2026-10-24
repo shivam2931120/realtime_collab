@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Editorial design system</title><style>/* Generated from design-tokens.json. Run npm run theme after editing tokens. */
+:root {
+  color-scheme: dark;
+  --color-background: #111214;
+  --rgb-background: 17 18 20;
+  --color-sidebar: #16181c;
+  --rgb-sidebar: 22 24 28;
+  --color-surface: #1d2025;
+  --rgb-surface: 29 32 37;
+  --color-surface-low: #191b20;
+  --rgb-surface-low: 25 27 32;
+  --color-surface-high: #262a31;
+  --rgb-surface-high: 38 42 49;
+  --color-surface-highest: #30353e;
+  --rgb-surface-highest: 48 53 62;
+  --color-text: #f2f3f5;
+  --rgb-text: 242 243 245;
+  --color-muted: #a7adb7;
+  --rgb-muted: 167 173 183;
+  --color-subtle: #858d9b;
+  --rgb-subtle: 133 141 155;
+  --color-border: #30343b;
+  --rgb-border: 48 52 59;
+  --color-primary: #c94b27;
+  --rgb-primary: 201 75 39;
+  --color-primary-hover: #c94521;
+  --rgb-primary-hover: 201 69 33;
+  --color-primary-text: #ff9b7a;
+  --rgb-primary-text: 255 155 122;
+  --color-success: #70d6ab;
+  --rgb-success: 112 214 171;
+  --color-error: #ff9a9a;
+  --rgb-error: 255 154 154;
+  --color-warning: #e8c17b;
+  --rgb-warning: 232 193 123;
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-dialog: 14px;
+  --font-ui: 'IBM Plex Sans', Arial, sans-serif;
+  --font-document: 'IBM Plex Sans', Arial, sans-serif;
+}
+*{box-sizing:border-box}body{margin:0;background:var(--color-background);color:var(--color-text);font:15px/1.6 system-ui}main{max-width:1000px;margin:auto;padding:40px 24px}h1{font-size:32px;letter-spacing:-1px}p{color:var(--color-muted)}section{padding:24px;border:1px solid var(--color-border);border-radius:10px;background:var(--color-sidebar);margin:20px 0}.palette{display:flex;flex-wrap:wrap;gap:14px}.swatch{width:110px}.chip{height:64px;border:1px solid var(--color-border);border-radius:6px}button,input{font:inherit;color:var(--color-text);border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);padding:10px 16px;margin:4px}button{cursor:pointer}button.primary{background:var(--color-primary);color:#fff;border-color:transparent}button:hover{filter:brightness(1.15)}:focus-visible{outline:2px solid var(--color-primary-text);outline-offset:3px}.sample-row{display:flex;gap:16px;justify-content:space-between;padding:18px;border-bottom:1px solid var(--color-border)}.dense .sample-row{padding:8px 18px}.status{color:var(--color-success)}.accent{color:var(--color-primary-text)}kbd{color:var(--color-muted)}</style><main><p class="accent">EDITORIAL / DESIGN SYSTEM</p><h1>A quieter workspace. More room to write.</h1><p>Shared tokens for the workspace, writing canvas, account screens and public pages.</p><section><h2>Palette</h2><div class="palette" id="palette"></div></section><section><h2>Controls</h2><button class="primary">New document</button><button>Share</button><input aria-label="Search workspace" placeholder="Search workspace…"><p><span class="status">● All changes saved</span> · <span class="accent">2 suggestions</span></p></section><section id="density"><h2>Document list</h2><button id="toggle" aria-pressed="false">Toggle compact spacing</button><div class="sample-row"><span>Launch announcement</span><span class="status">Ready for review</span></div><div class="sample-row"><span>Editorial style guide</span><span>Edited today</span></div></section><p>Use Tab to inspect focus states. This preview contains sample content only.</p></main><script>const names=['background','sidebar','surface','surface-high','primary','primary-text','text','muted','success','error'];const palette=document.getElementById('palette');for(const name of names){const item=document.createElement('div');item.className='swatch';const chip=document.createElement('div');chip.className='chip';chip.style.background='var(--color-'+name+')';const text=document.createElement('small');text.textContent=name;item.append(chip,text);palette.append(item)}document.getElementById('toggle').onclick=function(){const on=document.getElementById('density').classList.toggle('dense');this.setAttribute('aria-pressed',String(on))}</script></html>

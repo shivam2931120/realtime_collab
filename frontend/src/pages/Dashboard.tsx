@@ -25,7 +25,7 @@ const HighlightText = ({ value, query }: { value: string; query: string }) => {
     <>
       {parts.map((part, index) =>
         part.toLowerCase() === query.toLowerCase() ? (
-          <mark key={`${part}-${index}`} className="rounded bg-primary/25 px-0.5 text-primary">
+          <mark key={`${part}-${index}`} className="rounded bg-primary/25 px-0.5 text-accent">
             {part}
           </mark>
         ) : (
@@ -40,7 +40,7 @@ const roleBadgeClass = (role: DocItem["role"]) =>
   role === "owner"
     ? "bg-primary-container text-on-primary-container"
     : role === "editor"
-      ? "bg-primary/15 text-primary"
+      ? "bg-primary/15 text-accent"
       : role === "commenter"
         ? "bg-secondary/15 text-secondary"
         : "bg-white/10 text-on-surface-variant";
@@ -666,7 +666,7 @@ const DashboardPage = () => {
         <div key={node.id} className="space-y-1">
           <div
             className={`flex items-center gap-1 rounded px-2 py-1.5 transition ${
-              active ? "bg-primary/15 text-primary" : "text-on-surface-variant hover:bg-white/5 hover:text-white"
+              active ? "bg-primary/15 text-accent" : "text-on-surface-variant hover:bg-white/5 hover:text-white"
             }`}
             style={{ paddingLeft: `${8 + level * 12}px` }}
             onDragOver={(event) => {
@@ -709,7 +709,7 @@ const DashboardPage = () => {
       pageLabel="Editor Workspace"
       title="Recent Documents"
       actions={
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
           <Button
             type="button"
             onClick={() => {
@@ -717,7 +717,7 @@ const DashboardPage = () => {
               loadProductivity().catch(console.error);
             }}
             variant="outlined"
-            color="success"
+            color="primary"
             size="small"
             className="w-full sm:w-auto"
             startIcon={<span className="material-symbols-outlined text-sm">refresh</span>}
@@ -734,7 +734,7 @@ const DashboardPage = () => {
           </button>
           <button type="button" onClick={() => setIsCreateOpen(true)} className="emerald-primary-button w-full sm:w-auto">
             <span className="material-symbols-outlined text-sm">add</span>
-            New Entry
+            New document
           </button>
         </div>
       }
@@ -748,114 +748,20 @@ const DashboardPage = () => {
           { label: "Shared", value: workspaceStats.shared, icon: "group" },
           { label: "People", value: workspaceStats.collaborators, icon: "badge" },
         ].map((item) => (
-          <div key={item.label} className="rounded border border-white/5 bg-surface-container p-4">
+          <div key={item.label} className="rounded border border-outline bg-surface-container p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{item.label}</p>
-              <span className="material-symbols-outlined text-lg text-primary">{item.icon}</span>
+              <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">{item.label}</p>
+              <span className="material-symbols-outlined text-lg text-accent">{item.icon}</span>
             </div>
             <p className="mt-3 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
           </div>
         ))}
       </section>
 
-      <section className="mb-6 rounded border border-white/5 bg-surface-container p-4">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Productivity</p>
-            <h2 className="mt-1 text-xl font-bold text-white">Recent activity</h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => loadProductivity().catch(console.error)}
-            className="emerald-muted-button w-full sm:w-auto"
-          >
-            <span className="material-symbols-outlined text-sm">{activityLoading ? "hourglass_empty" : "refresh"}</span>
-            Update
-          </button>
-        </div>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
-          <div className="rounded border border-white/5 bg-surface p-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Recently edited</p>
-              <span className="material-symbols-outlined text-sm text-primary">edit_document</span>
-            </div>
-            <div className="space-y-2">
-              {(activityOverview?.recentlyEdited || []).slice(0, 4).map((document) => (
-                <button
-                  key={`edited-${document.id}`}
-                  type="button"
-                  onClick={() => navigate(`/editor/${document.id}`)}
-                  className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
-                >
-                  <p className="truncate text-sm font-semibold text-white">{document.title}</p>
-                  <p className="mt-1 text-[10px] text-on-surface-variant">{new Date(document.updatedAt).toLocaleString()}</p>
-                </button>
-              ))}
-              {!activityOverview?.recentlyEdited?.length ? <p className="text-sm text-on-surface-variant">No recent edits.</p> : null}
-            </div>
-          </div>
-          <div className="rounded border border-white/5 bg-surface p-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Recently shared</p>
-              <span className="material-symbols-outlined text-sm text-primary">ios_share</span>
-            </div>
-            <div className="space-y-2">
-              {(activityOverview?.recentlyShared || []).slice(0, 4).map((item) => (
-                <button
-                  key={`shared-${item.id}`}
-                  type="button"
-                  onClick={() => navigate(`/editor/${item.documentId}`)}
-                  className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
-                >
-                  <p className="truncate text-sm font-semibold text-white">{item.title}</p>
-                  <p className="mt-1 truncate text-[10px] text-on-surface-variant">{item.actor.email}</p>
-                </button>
-              ))}
-              {!activityOverview?.recentlyShared?.length ? <p className="text-sm text-on-surface-variant">No share activity.</p> : null}
-            </div>
-          </div>
-          <div className="rounded border border-white/5 bg-surface p-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Open comments</p>
-              <span className="material-symbols-outlined text-sm text-primary">chat_bubble</span>
-            </div>
-            <div className="space-y-2">
-              {(activityOverview?.openComments || []).slice(0, 4).map((comment) => (
-                <button
-                  key={`comment-${comment.id}`}
-                  type="button"
-                  onClick={() => navigate(`/editor/${comment.documentId}`)}
-                  className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
-                >
-                  <p className="truncate text-sm font-semibold text-white">{comment.title}</p>
-                  <p className="mt-1 line-clamp-1 text-[10px] text-on-surface-variant">{comment.body}</p>
-                </button>
-              ))}
-              {!activityOverview?.openComments?.length ? <p className="text-sm text-on-surface-variant">No open comments.</p> : null}
-            </div>
-          </div>
-          <div className="rounded border border-white/5 bg-surface p-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Pending invites</p>
-              <span className="material-symbols-outlined text-sm text-primary">forward_to_inbox</span>
-            </div>
-            <div className="space-y-2">
-              {(activityOverview?.pendingInvites || []).slice(0, 4).map((invite) => (
-                <div key={`pending-${invite.documentId}-${invite.userId}`} className="rounded bg-surface-container-high px-3 py-2">
-                  <p className="truncate text-sm font-semibold text-white">{invite.title}</p>
-                  <p className="mt-1 truncate text-[10px] text-on-surface-variant">{invite.email}</p>
-                </div>
-              ))}
-              {!activityOverview?.pendingInvites?.length ? <p className="text-sm text-on-surface-variant">No pending invites.</p> : null}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mb-6 rounded border border-white/5 bg-surface-container p-3 sm:p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+      <section className="mb-6 rounded border border-outline bg-surface-container p-3 sm:p-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
           <label className="space-y-1">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Role</span>
+            <span className="block text-[11px] font-medium tracking-normal text-on-surface-variant">Role</span>
             <select
               value={roleFilter}
               onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}
@@ -869,7 +775,7 @@ const DashboardPage = () => {
             </select>
           </label>
           <label className="space-y-1">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Saved</span>
+            <span className="block text-[11px] font-medium tracking-normal text-on-surface-variant">Saved</span>
             <select
               value={quickFilter}
               onChange={(event) => setQuickFilter(event.target.value as QuickFilter)}
@@ -881,7 +787,7 @@ const DashboardPage = () => {
             </select>
           </label>
           <label className="space-y-1">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Tag</span>
+            <span className="block text-[11px] font-medium tracking-normal text-on-surface-variant">Tag</span>
             <select
               value={tagFilter}
               onChange={(event) => setTagFilter(event.target.value)}
@@ -896,7 +802,7 @@ const DashboardPage = () => {
             </select>
           </label>
           <label className="space-y-1">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Sort</span>
+            <span className="block text-[11px] font-medium tracking-normal text-on-surface-variant">Sort</span>
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
@@ -908,14 +814,14 @@ const DashboardPage = () => {
               <option value="owner">Owner email</option>
             </select>
           </label>
-          <div className="grid grid-cols-2 gap-1 rounded border border-white/5 bg-surface-container-low p-1 sm:col-span-2 xl:col-span-1 xl:self-end">
+          <div className="grid grid-cols-2 gap-1 rounded border border-outline bg-surface-container-low p-1 sm:col-span-2 xl:col-span-1 xl:self-end">
             {(["grid", "list"] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
                 onClick={() => setViewMode(mode)}
-                className={`flex items-center justify-center gap-1 rounded px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition ${
-                  viewMode === mode ? "bg-primary/20 text-primary" : "text-on-surface-variant hover:text-white"
+                className={`flex items-center justify-center gap-1 rounded px-2 py-2 text-[11px] font-medium tracking-normal transition ${
+                  viewMode === mode ? "bg-primary/20 text-accent" : "text-on-surface-variant hover:text-white"
                 }`}
               >
                 <span className="material-symbols-outlined text-sm">{mode === "grid" ? "grid_view" : "view_list"}</span>
@@ -926,96 +832,8 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">
-        <div className="rounded border border-white/5 bg-surface-container p-4">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Folders</p>
-              <h2 className="mt-1 text-lg font-bold text-white">Workspace tree</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => setCurrentFolderId(null)}
-              className={`rounded px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition ${
-                currentFolderId ? "text-on-surface-variant hover:bg-white/10 hover:text-white" : "bg-primary/15 text-primary"
-              }`}
-            >
-              Root
-            </button>
-          </div>
-          {favoriteFolders.length ? (
-            <div className="mb-4 rounded border border-white/5 bg-surface p-3">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Favorite folders</p>
-              <div className="flex flex-wrap gap-2">
-                {favoriteFolders.map((folder) => (
-                  <button
-                    key={`fav-${folder.id}`}
-                    type="button"
-                    onClick={() => setCurrentFolderId(folder.id)}
-                    className="rounded bg-secondary/10 px-2 py-1 text-xs font-semibold text-secondary transition hover:bg-secondary/15"
-                  >
-                    {folder.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <div className="max-h-72 overflow-y-auto pr-1">
-            {folderTree.length ? renderFolderTree(folderTree) : <p className="text-sm text-on-surface-variant">No folders yet.</p>}
-          </div>
-        </div>
-
-        <div className="rounded border border-white/5 bg-surface-container p-4">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Invite management</p>
-              <h2 className="mt-1 text-lg font-bold text-white">Access invites</h2>
-            </div>
-            <span className="text-xs text-on-surface-variant">{invites.length} active invites</span>
-          </div>
-          <div className="grid gap-2">
-            {invites.slice(0, 6).map((invite) => {
-              const key = `${invite.documentId}-${invite.userId}`;
-              return (
-                <div key={key} className="rounded border border-white/5 bg-surface p-3">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{invite.title}</p>
-                      <p className="mt-1 truncate text-xs text-on-surface-variant">{invite.email} · {invite.role}</p>
-                      <p className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
-                        {invite.invitationStatus} · {invite.inviteEmailStatus || "queued"} · {formatDateTime(invite.lastInviteSentAt)}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:flex">
-                      <button
-                        type="button"
-                        onClick={() => resendInvite(invite).catch(console.error)}
-                        disabled={inviteBusyKey === key}
-                        className="emerald-muted-button justify-center px-3 py-2 text-xs"
-                      >
-                        <span className="material-symbols-outlined text-sm">forward_to_inbox</span>
-                        Resend
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => cancelInvite(invite).catch(console.error)}
-                        disabled={inviteBusyKey === key}
-                        className="flex items-center justify-center gap-2 rounded border border-error/20 bg-error-container/20 px-3 py-2 text-xs font-semibold text-error transition hover:bg-error-container/30 disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-sm">person_remove</span>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {!invites.length ? <p className="rounded bg-surface p-4 text-sm text-on-surface-variant">No active invites.</p> : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="mb-6 rounded border border-white/5 bg-surface-container p-4">
+      <details className="mb-6 rounded border border-outline bg-surface-container p-4">
+        <summary className="cursor-pointer text-sm font-medium text-on-surface-variant">Bulk actions <span className="ml-2 text-xs text-accent">{selectedDocIds.length ? `${selectedDocIds.length} selected` : "Select, move, tag, share, or export"}</span></summary><div className="mt-4">
         <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -1030,7 +848,7 @@ const DashboardPage = () => {
             <span className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant">
               {selectedDocIds.length} selected
             </span>
-            {bulkNotice ? <span className="text-xs font-semibold text-primary">{bulkNotice}</span> : null}
+            {bulkNotice ? <span className="text-xs font-semibold text-accent">{bulkNotice}</span> : null}
           </div>
           <button
             type="button"
@@ -1097,15 +915,16 @@ const DashboardPage = () => {
             Apply
           </button>
         </div>
-      </section>
+        </div>
+      </details>
 
       {currentFolderId && (
-        <div className="mb-6 rounded border border-white/5 bg-surface-container p-3">
+        <div className="mb-6 rounded border border-outline bg-surface-container p-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <button
               type="button"
               onClick={() => setCurrentFolderId(null)}
-              className="rounded px-2 py-1 font-semibold text-primary transition hover:bg-primary/10"
+              className="rounded px-2 py-1 font-semibold text-accent transition hover:bg-primary/10"
             >
               Workspace
             </button>
@@ -1116,7 +935,7 @@ const DashboardPage = () => {
                   type="button"
                   onClick={() => setCurrentFolderId(folder.id)}
                   className={`rounded px-2 py-1 font-semibold transition ${
-                    folder.id === currentFolderId ? "bg-primary/15 text-primary" : "text-on-surface-variant hover:bg-white/10 hover:text-white"
+                    folder.id === currentFolderId ? "bg-primary/15 text-accent" : "text-on-surface-variant hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   {folder.name}
@@ -1138,8 +957,8 @@ const DashboardPage = () => {
           onDrop={() => handleDropIntoFolder(null)}
           className={`mb-6 flex w-full items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm font-semibold transition ${
             dropTargetId === "root"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-white/10 bg-surface-container-low text-on-surface-variant"
+              ? "border-primary bg-primary/10 text-accent"
+              : "border-outline bg-surface-container-low text-on-surface-variant"
           }`}
         >
           <span className="material-symbols-outlined text-base">drive_file_move</span>
@@ -1152,23 +971,23 @@ const DashboardPage = () => {
         <button
           type="button"
           onClick={() => setIsCreateOpen(true)}
-          className={`group flex flex-col items-center justify-center rounded border border-dashed border-white/10 bg-surface-container-low transition hover:border-primary/50 ${
+          className={`group order-last flex flex-col items-center justify-center rounded border border-dashed border-outline bg-surface-container-low transition hover:border-primary/50 ${
             viewMode === "grid" ? "min-h-[170px] sm:min-h-[220px] md:min-h-[264px]" : "min-h-[110px]"
           }`}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 transition group-hover:scale-110">
-            <span className="material-symbols-outlined text-3xl text-primary">add_circle</span>
+            <span className="material-symbols-outlined text-3xl text-accent">add_circle</span>
           </div>
           <p className="mt-4 text-xs font-bold uppercase tracking-tight text-white">Create New Document</p>
-          <p className="mt-1 text-[10px] text-[#a3a3a3]">Start from a clean slate</p>
+          <p className="mt-1 text-[10px] text-on-surface-variant">Start from a clean slate</p>
         </button>
 
         {loading ? (
-          <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+          <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
             Loading...
           </div>
         ) : filteredDocs.length === 0 && filteredFolders.length === 0 ? (
-          <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant md:col-span-2 xl:col-span-2">
+          <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant md:col-span-2 xl:col-span-2">
             No contents found in this area.
           </div>
         ) : (
@@ -1202,14 +1021,14 @@ const DashboardPage = () => {
                   className={`w-full flex flex-col items-center justify-center rounded border bg-surface-container-high transition ${
                     viewMode === "grid" ? "py-8" : "py-5"
                   } ${
-                    dropTargetId === folder.id ? "border-primary shadow-[0_0_0_1px_rgba(16,185,129,0.6)]" : "border-white/5 hover:border-primary/50"
+                    dropTargetId === folder.id ? "border-primary shadow-[0_0_0_1px_rgba(16,185,129,0.6)]" : "border-outline hover:border-primary/50"
                   }`}
                 >
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-highest transition group-hover:scale-110">
-                    <span className="material-symbols-outlined text-4xl text-[#a3a3a3]">folder</span>
+                    <span className="material-symbols-outlined text-4xl text-on-surface-variant">folder</span>
                   </div>
                   <p className="mt-4 max-w-full break-words px-4 text-center text-sm font-bold tracking-tight text-white">{folder.name}</p>
-                  <span className="mt-2 rounded bg-surface-container-low px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">
+                  <span className="mt-2 rounded bg-surface-container-low px-2 py-0.5 text-[11px] font-medium tracking-normal text-on-surface-variant">
                     Folder
                   </span>
                   <span className="mt-2 text-[10px] text-on-surface-variant">Drag files or folders here</span>
@@ -1221,7 +1040,7 @@ const DashboardPage = () => {
                     toggleFolderFavorite(folder.id);
                   }}
                   title={folderPreferences[folder.id]?.favorite ? "Remove favorite" : "Favorite folder"}
-                  className={`absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded border border-white/10 opacity-100 transition-opacity md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 ${
+                  className={`absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded border border-outline opacity-100 transition-opacity md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 ${
                     folderPreferences[folder.id]?.favorite ? "bg-secondary/15 text-secondary" : "bg-black/30 text-white"
                   }`}
                 >
@@ -1234,7 +1053,7 @@ const DashboardPage = () => {
                     setConfirmDelete({ type: "folder", id: folder.id, name: folder.name });
                   }}
                   title="Delete folder"
-                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded bg-error-container/25 text-error opacity-100 transition-opacity hover:bg-error-container/40 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
+                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded bg-error-container/25 text-error opacity-100 transition-opacity hover:bg-error-container/40 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 >
                   <span className="material-symbols-outlined text-[16px]">delete</span>
                 </button>
@@ -1260,15 +1079,15 @@ const DashboardPage = () => {
                 <button
                   type="button"
                   onClick={() => navigate(`/editor/${document.id}`)}
-                  className="w-full overflow-hidden rounded border border-white/5 bg-surface-container text-left transition hover:bg-surface-container-high"
+                  className="document-card w-full overflow-hidden rounded-lg border border-outline bg-surface-container text-left transition hover:border-outline hover:bg-surface-container-high"
                 >
-                  <div className={`${viewMode === "grid" ? "h-32" : "h-2"} bg-gradient-to-br from-surface-container-high via-[#23322b] to-surface-container-low opacity-80`} />
+                  <div className={`${viewMode === "grid" ? "flex h-16 items-center justify-center border-b border-outline" : "hidden"} bg-surface-container-low text-on-surface-variant`}><span className="material-symbols-outlined text-2xl" aria-hidden="true">description</span></div>
                   <div className="p-4">
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <h3 className="min-w-0 break-words pr-8 text-lg font-bold tracking-tight text-white md:pr-0">
                         <HighlightText value={document.title} query={activeQuery} />
                       </h3>
-                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest shrink-0 ${roleBadgeClass(document.role)}`}>
+                      <span className={`rounded px-2 py-0.5 text-[11px] font-medium tracking-normal shrink-0 ${roleBadgeClass(document.role)}`}>
                         {document.role}
                       </span>
                     </div>
@@ -1300,7 +1119,7 @@ const DashboardPage = () => {
                     </div>
                   </div>
                 </button>
-                <div className="absolute left-2 top-2 flex gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+                <div className="absolute left-2 top-2 flex gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                   <button
                     type="button"
                     onClick={(event) => {
@@ -1308,8 +1127,8 @@ const DashboardPage = () => {
                       toggleDocumentSelected(document.id);
                     }}
                     title={selectedDocIds.includes(document.id) ? "Unselect" : "Select"}
-                    className={`flex h-8 w-8 items-center justify-center rounded border border-white/10 ${
-                      selectedDocIds.includes(document.id) ? "bg-primary/20 text-primary" : "bg-black/30 text-white"
+                    className={`flex h-8 w-8 items-center justify-center rounded border border-outline ${
+                      selectedDocIds.includes(document.id) ? "bg-primary/20 text-accent" : "bg-black/30 text-white"
                     }`}
                   >
                     <span className="material-symbols-outlined text-[17px]">
@@ -1323,7 +1142,7 @@ const DashboardPage = () => {
                       toggleStarred(document.id);
                     }}
                     title={documentPreferences[document.id]?.starred ? "Remove favorite" : "Favorite"}
-                    className={`flex h-8 w-8 items-center justify-center rounded border border-white/10 ${
+                    className={`flex h-8 w-8 items-center justify-center rounded border border-outline ${
                       documentPreferences[document.id]?.starred ? "bg-secondary/15 text-secondary" : "bg-black/30 text-white"
                     }`}
                   >
@@ -1336,8 +1155,8 @@ const DashboardPage = () => {
                       togglePinned(document.id);
                     }}
                     title={documentPreferences[document.id]?.pinned ? "Unpin" : "Pin"}
-                    className={`flex h-8 w-8 items-center justify-center rounded border border-white/10 ${
-                      documentPreferences[document.id]?.pinned ? "bg-primary/20 text-primary" : "bg-black/30 text-white"
+                    className={`flex h-8 w-8 items-center justify-center rounded border border-outline ${
+                      documentPreferences[document.id]?.pinned ? "bg-primary/20 text-accent" : "bg-black/30 text-white"
                     }`}
                   >
                     <span className="material-symbols-outlined text-[17px]">push_pin</span>
@@ -1352,7 +1171,7 @@ const DashboardPage = () => {
                       setConfirmDelete({ type: "doc", id: document.id, title: document.title });
                     }}
                     title="Delete document"
-                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded bg-error-container/25 text-error opacity-100 transition-opacity hover:bg-error-container/40 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded bg-error-container/25 text-error opacity-100 transition-opacity hover:bg-error-container/40 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                   >
                     <span className="material-symbols-outlined text-[16px]">delete</span>
                   </button>
@@ -1363,7 +1182,203 @@ const DashboardPage = () => {
         )}
       </div>
 
-      <div className="mt-10 flex items-start gap-4 border-t border-white/5 py-6 md:mt-12 md:items-center">
+      <div className="mt-8 space-y-4">
+        <details className="workspace-disclosure rounded-lg border border-outline bg-surface-container-low p-4">
+          <summary className="cursor-pointer text-sm font-medium text-on-surface">Activity and review <span className="ml-2 text-xs font-normal text-on-surface-variant">Recent edits, comments, and invites</span></summary>
+          <div className="mt-4">
+      <section className="mb-6 rounded border border-outline bg-surface-container p-4">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-medium tracking-wide text-accent">Productivity</p>
+            <h2 className="mt-1 text-xl font-bold text-white">Recent activity</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadProductivity().catch(console.error)}
+            className="emerald-muted-button w-full sm:w-auto"
+          >
+            <span className="material-symbols-outlined text-sm">{activityLoading ? "hourglass_empty" : "refresh"}</span>
+            Update
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+          <div className="rounded border border-outline bg-surface p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">Recently edited</p>
+              <span className="material-symbols-outlined text-sm text-accent">edit_document</span>
+            </div>
+            <div className="space-y-2">
+              {(activityOverview?.recentlyEdited || []).slice(0, 4).map((document) => (
+                <button
+                  key={`edited-${document.id}`}
+                  type="button"
+                  onClick={() => navigate(`/editor/${document.id}`)}
+                  className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
+                >
+                  <p className="truncate text-sm font-semibold text-white">{document.title}</p>
+                  <p className="mt-1 text-[10px] text-on-surface-variant">{new Date(document.updatedAt).toLocaleString()}</p>
+                </button>
+              ))}
+              {!activityOverview?.recentlyEdited?.length ? <p className="text-sm text-on-surface-variant">No recent edits.</p> : null}
+            </div>
+          </div>
+          <div className="rounded border border-outline bg-surface p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">Recently shared</p>
+              <span className="material-symbols-outlined text-sm text-accent">ios_share</span>
+            </div>
+            <div className="space-y-2">
+              {(activityOverview?.recentlyShared || []).slice(0, 4).map((item) => (
+                <button
+                  key={`shared-${item.id}`}
+                  type="button"
+                  onClick={() => navigate(`/editor/${item.documentId}`)}
+                  className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
+                >
+                  <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+                  <p className="mt-1 truncate text-[10px] text-on-surface-variant">{item.actor.email}</p>
+                </button>
+              ))}
+              {!activityOverview?.recentlyShared?.length ? <p className="text-sm text-on-surface-variant">No share activity.</p> : null}
+            </div>
+          </div>
+          <div className="rounded border border-outline bg-surface p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">Open comments</p>
+              <span className="material-symbols-outlined text-sm text-accent">chat_bubble</span>
+            </div>
+            <div className="space-y-2">
+              {(activityOverview?.openComments || []).slice(0, 4).map((comment) => (
+                <button
+                  key={`comment-${comment.id}`}
+                  type="button"
+                  onClick={() => navigate(`/editor/${comment.documentId}`)}
+                  className="w-full rounded bg-surface-container-high px-3 py-2 text-left transition hover:bg-surface-container-highest"
+                >
+                  <p className="truncate text-sm font-semibold text-white">{comment.title}</p>
+                  <p className="mt-1 line-clamp-1 text-[10px] text-on-surface-variant">{comment.body}</p>
+                </button>
+              ))}
+              {!activityOverview?.openComments?.length ? <p className="text-sm text-on-surface-variant">No open comments.</p> : null}
+            </div>
+          </div>
+          <div className="rounded border border-outline bg-surface p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">Pending invites</p>
+              <span className="material-symbols-outlined text-sm text-accent">forward_to_inbox</span>
+            </div>
+            <div className="space-y-2">
+              {(activityOverview?.pendingInvites || []).slice(0, 4).map((invite) => (
+                <div key={`pending-${invite.documentId}-${invite.userId}`} className="rounded bg-surface-container-high px-3 py-2">
+                  <p className="truncate text-sm font-semibold text-white">{invite.title}</p>
+                  <p className="mt-1 truncate text-[10px] text-on-surface-variant">{invite.email}</p>
+                </div>
+              ))}
+              {!activityOverview?.pendingInvites?.length ? <p className="text-sm text-on-surface-variant">No pending invites.</p> : null}
+            </div>
+          </div>
+        </div>
+      </section>
+
+          </div>
+        </details>
+        <details className="workspace-disclosure rounded-lg border border-outline bg-surface-container-low p-4">
+          <summary className="cursor-pointer text-sm font-medium text-on-surface">Folders and access <span className="ml-2 text-xs font-normal text-on-surface-variant">Organize your workspace</span></summary>
+          <div className="mt-4">
+      <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">
+        <div className="rounded border border-outline bg-surface-container p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-medium tracking-wide text-accent">Folders</p>
+              <h2 className="mt-1 text-lg font-bold text-white">Workspace tree</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCurrentFolderId(null)}
+              className={`rounded px-2 py-1 text-[11px] font-medium tracking-normal transition ${
+                currentFolderId ? "text-on-surface-variant hover:bg-white/10 hover:text-white" : "bg-primary/15 text-accent"
+              }`}
+            >
+              Root
+            </button>
+          </div>
+          {favoriteFolders.length ? (
+            <div className="mb-4 rounded border border-outline bg-surface p-3">
+              <p className="mb-2 text-[11px] font-medium tracking-normal text-on-surface-variant">Favorite folders</p>
+              <div className="flex flex-wrap gap-2">
+                {favoriteFolders.map((folder) => (
+                  <button
+                    key={`fav-${folder.id}`}
+                    type="button"
+                    onClick={() => setCurrentFolderId(folder.id)}
+                    className="rounded bg-secondary/10 px-2 py-1 text-xs font-semibold text-secondary transition hover:bg-secondary/15"
+                  >
+                    {folder.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="max-h-72 overflow-y-auto pr-1">
+            {folderTree.length ? renderFolderTree(folderTree) : <p className="text-sm text-on-surface-variant">No folders yet.</p>}
+          </div>
+        </div>
+
+        <div className="rounded border border-outline bg-surface-container p-4">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] font-medium tracking-wide text-accent">Invite management</p>
+              <h2 className="mt-1 text-lg font-bold text-white">Access invites</h2>
+            </div>
+            <span className="text-xs text-on-surface-variant">{invites.length} active invites</span>
+          </div>
+          <div className="grid gap-2">
+            {invites.slice(0, 6).map((invite) => {
+              const key = `${invite.documentId}-${invite.userId}`;
+              return (
+                <div key={key} className="rounded border border-outline bg-surface p-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">{invite.title}</p>
+                      <p className="mt-1 truncate text-xs text-on-surface-variant">{invite.email} · {invite.role}</p>
+                      <p className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
+                        {invite.invitationStatus} · {invite.inviteEmailStatus || "queued"} · {formatDateTime(invite.lastInviteSentAt)}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:flex">
+                      <button
+                        type="button"
+                        onClick={() => resendInvite(invite).catch(console.error)}
+                        disabled={inviteBusyKey === key}
+                        className="emerald-muted-button justify-center px-3 py-2 text-xs"
+                      >
+                        <span className="material-symbols-outlined text-sm">forward_to_inbox</span>
+                        Resend
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => cancelInvite(invite).catch(console.error)}
+                        disabled={inviteBusyKey === key}
+                        className="flex items-center justify-center gap-2 rounded border border-error/20 bg-error-container/20 px-3 py-2 text-xs font-semibold text-error transition hover:bg-error-container/30 disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">person_remove</span>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {!invites.length ? <p className="rounded bg-surface p-4 text-sm text-on-surface-variant">No active invites.</p> : null}
+          </div>
+        </div>
+      </section>
+
+          </div>
+        </details>
+      </div>
+
+      <div className="mt-10 flex items-start gap-4 border-t border-outline py-6 md:mt-12 md:items-center">
         <div className="h-12 w-1 bg-primary" />
         <div>
           <h4 className="text-sm font-bold tracking-tight text-white">System Status: Operational</h4>
@@ -1376,16 +1391,16 @@ const DashboardPage = () => {
       {/* ── Create Document Modal ─────────────────────────────── */}
       {isCreateOpen ? (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 px-0 sm:items-center sm:px-4">
-          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:rounded-lg sm:p-6">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline p-4 shadow-2xl sm:rounded-lg sm:p-6">
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">New Entry</p>
+                <p className="text-[11px] font-medium tracking-wide text-accent">New Entry</p>
                 <h2 className="mt-2 text-2xl font-bold text-white">Create document</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -1393,7 +1408,7 @@ const DashboardPage = () => {
 
             <form className="space-y-5" onSubmit={handleCreate}>
               <div className="space-y-1.5">
-                <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="doc-title">
+                <label className="block px-1 text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="doc-title">
                   Document Title
                 </label>
                 <input
@@ -1407,7 +1422,7 @@ const DashboardPage = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="share-emails">
+                <label className="block px-1 text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="share-emails">
                   Share With (comma-separated emails)
                 </label>
                 <textarea
@@ -1420,7 +1435,7 @@ const DashboardPage = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="share-role">
+                <label className="block px-1 text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="share-role">
                   Default Access
                 </label>
                 <select
@@ -1451,23 +1466,23 @@ const DashboardPage = () => {
       {/* ── Create Folder Modal ───────────────────────────────── */}
       {isCreateFolderOpen ? (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 px-0 sm:items-center sm:px-4">
-          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:rounded-lg sm:p-6">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline p-4 shadow-2xl sm:rounded-lg sm:p-6">
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">New Folder</p>
+                <p className="text-[11px] font-medium tracking-wide text-accent">New Folder</p>
                 <h2 className="mt-2 text-2xl font-bold text-white">Create folder</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCreateFolderOpen(false)}
-                className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <form className="space-y-5" onSubmit={handleCreateFolder}>
               <div className="space-y-1.5">
-                <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                <label className="block px-1 text-[11px] font-medium tracking-normal text-on-surface-variant">
                   Folder Name
                 </label>
                 <input
@@ -1494,16 +1509,16 @@ const DashboardPage = () => {
       {/* ── Trash Modal ──────────────────────────────────────── */}
       {trashOpen ? (
         <div className="fixed inset-0 z-[65] flex items-end justify-center bg-black/75 px-0 sm:items-center sm:px-4">
-          <div className="editorial-panel flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:max-h-[86vh] sm:rounded-lg sm:p-6">
+          <div className="editorial-panel flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-lg border border-outline p-4 shadow-2xl sm:max-h-[86vh] sm:rounded-lg sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Trash</p>
+                <p className="text-[11px] font-medium tracking-wide text-accent">Trash</p>
                 <h2 className="mt-2 text-2xl font-bold text-white">Deleted documents</h2>
               </div>
               <button
                 type="button"
                 onClick={closeTrash}
-                className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -1513,13 +1528,13 @@ const DashboardPage = () => {
 
             <div className="min-h-0 flex-1 overflow-y-auto">
               {trashLoading ? (
-                <div className="rounded border border-white/5 bg-surface-container-high p-4 text-sm text-on-surface-variant">
+                <div className="rounded border border-outline bg-surface-container-high p-4 text-sm text-on-surface-variant">
                   Loading...
                 </div>
               ) : trashDocs.length ? (
                 <div className="space-y-3">
                   {trashDocs.map((document) => (
-                    <div key={document.id} className="rounded border border-white/10 bg-surface-container-high p-4">
+                    <div key={document.id} className="rounded border border-outline bg-surface-container-high p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <h3 className="break-words text-base font-bold text-white">{document.title}</h3>
@@ -1555,7 +1570,7 @@ const DashboardPage = () => {
                   ))}
                 </div>
               ) : (
-                <div className="rounded border border-white/5 bg-surface-container-high p-4 text-sm text-on-surface-variant">
+                <div className="rounded border border-outline bg-surface-container-high p-4 text-sm text-on-surface-variant">
                   Trash is empty.
                 </div>
               )}

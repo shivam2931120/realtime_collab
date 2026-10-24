@@ -40,7 +40,7 @@ const DraftsPage = () => {
   return (
     <WorkspaceLayout pageLabel="Draft Workspace" title="Drafts">
       {loading ? (
-        <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+        <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
           Loading drafts...
         </div>
       ) : drafts.length ? (
@@ -50,9 +50,9 @@ const DraftsPage = () => {
               key={doc.id}
               type="button"
               onClick={() => navigate(`/editor/${doc.id}`)}
-              className="rounded border border-white/5 bg-surface-container p-5 text-left transition hover:bg-surface-container-high"
+              className="rounded border border-outline bg-surface-container p-5 text-left transition hover:bg-surface-container-high"
             >
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Draft</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Draft</p>
               <h3 className="mt-3 text-xl font-bold text-white">{doc.title}</h3>
               <p className="mt-3 text-sm text-on-surface-variant">
                 This draft is still light on content. Open it to continue writing.
@@ -64,7 +64,7 @@ const DraftsPage = () => {
           ))}
         </div>
       ) : (
-        <div className="rounded border border-white/5 bg-surface-container p-6 text-sm text-on-surface-variant">
+        <div className="rounded border border-outline bg-surface-container p-6 text-sm text-on-surface-variant">
           No drafts right now.
         </div>
       )}

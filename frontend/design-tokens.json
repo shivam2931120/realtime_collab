@@ -1,0 +1,29 @@
+{
+  "colors": {
+    "background": "#111214",
+    "sidebar": "#16181c",
+    "surface": "#1d2025",
+    "surface-low": "#191b20",
+    "surface-high": "#262a31",
+    "surface-highest": "#30353e",
+    "text": "#f2f3f5",
+    "muted": "#a7adb7",
+    "subtle": "#858d9b",
+    "border": "#30343b",
+    "primary": "#c94b27",
+    "primary-hover": "#c94521",
+    "primary-text": "#ff9b7a",
+    "success": "#70d6ab",
+    "error": "#ff9a9a",
+    "warning": "#e8c17b"
+  },
+  "radius": {
+    "control": "6px",
+    "panel": "10px",
+    "dialog": "14px"
+  },
+  "font": {
+    "ui": "'IBM Plex Sans', Arial, sans-serif",
+    "document": "'IBM Plex Sans', Arial, sans-serif"
+  }
+}

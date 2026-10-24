@@ -55,7 +55,7 @@ export default function ClerkSessionBridge({ children }: { children: ReactNode }
     return () => { active = false; };
   }, [isLoaded, isSignedIn, userId, getToken, setClerkSession, clearDocs]);
 
-  if (error) return <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-center text-sm text-red-300">{error}</div>;
-  if (!isLoaded || !ready) return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">Loading session...</div>;
+  if (error) return <div className="flex min-h-screen items-center justify-center bg-background px-6 text-center text-sm text-red-300">{error}</div>;
+  if (!isLoaded || !ready) return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-on-surface-variant">Loading session...</div>;
   return <>{children}</>;
 }

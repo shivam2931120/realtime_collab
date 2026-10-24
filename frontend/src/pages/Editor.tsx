@@ -25,6 +25,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { connectSocket, disconnectSocket } from "../services/socket";
 import { reportSocketBackendError } from "../services/backendErrors";
+import WorkspaceSidebar from "../components/WorkspaceSidebar";
 import EditorCommentCard from "../components/EditorCommentCard";
 import { DocItem, useDocStore } from "../store/docStore";
 import { DocComment } from "../types";
@@ -121,20 +122,20 @@ type DeadlineItem = { id: string; title: string; description: string; dueAt: str
 type SuggestionItem = { id: string; originalText: string; replacementText: string; position: { from: number; to: number }; status: "open" | "accepted" | "rejected"; createdBy: { id: string; email: string }; createdAt: string };
 
 const textColorOptions = [
-  { label: "Ink", value: "#131313" },
-  { label: "Slate", value: "#475569" },
-  { label: "Green", value: "#047857" },
-  { label: "Blue", value: "#2563eb" },
-  { label: "Violet", value: "#7c3aed" },
-  { label: "Rose", value: "#be123c" },
+  { label: "White", value: "#f2f3f5" },
+  { label: "Slate", value: "#a7adb7" },
+  { label: "Green", value: "#70d6ab" },
+  { label: "Blue", value: "#8db7ff" },
+  { label: "Violet", value: "#c4a5ff" },
+  { label: "Rose", value: "#ff9ab1" },
 ];
 
 const highlightColorOptions = [
-  { label: "Mint", value: "#bbf7d0" },
-  { label: "Amber", value: "#fde68a" },
-  { label: "Sky", value: "#bae6fd" },
-  { label: "Pink", value: "#fbcfe8" },
-  { label: "Lavender", value: "#ddd6fe" },
+  { label: "Mint", value: "#23513e" },
+  { label: "Amber", value: "#624b20" },
+  { label: "Sky", value: "#234563" },
+  { label: "Pink", value: "#633b4d" },
+  { label: "Lavender", value: "#493f68" },
 ];
 
 const buildAvatarUrl = (seedInput: string) =>
@@ -305,7 +306,7 @@ const roleBadgeClass = (role: DocItem["role"]) =>
   role === "owner"
     ? "bg-primary-container text-on-primary-container"
     : role === "editor"
-      ? "bg-primary/15 text-primary"
+      ? "bg-primary/15 text-accent"
       : role === "commenter"
         ? "bg-secondary/15 text-secondary"
         : "bg-white/10 text-on-surface-variant";
@@ -323,7 +324,7 @@ const formatLastSeen = (value?: string) => {
 };
 
 const menuButtonClass =
-  "rounded px-3 py-1 transition-colors duration-200 hover:bg-[#201f1f]";
+  "rounded px-3 py-1 transition-colors duration-200 hover:bg-surface-container-high";
 
 const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -343,6 +344,26 @@ const EditorPage = () => {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [yjsReady, setYjsReady] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  useEffect(() => {
+    if (!aiOpen) return;
+    const panel = document.querySelector<HTMLElement>(".editor-ai-panel");
+    const previous = document.activeElement as HTMLElement | null;
+    const controls = () => panel?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]');
+    controls()?.[0]?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setAiOpen(false); }
+      if (event.key === "Tab") {
+        const items = controls();
+        if (!items?.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("keydown", handleKey); if (previous?.isConnected) previous.focus(); };
+  }, [aiOpen]);
   const [aiAction, setAiAction] = useState<AiAction>("rewrite");
   const [aiTone, setAiTone] = useState("professional");
   const [aiResult, setAiResult] = useState("");
@@ -383,6 +404,7 @@ const EditorPage = () => {
   const [showComments, setShowComments] = useState(true);
   const [wideCanvas, setWideCanvas] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const [showAutosaveHistory, setShowAutosaveHistory] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
@@ -460,7 +482,7 @@ const EditorPage = () => {
     content: "<p></p>",
     editorProps: {
       attributes: {
-        class: "editorial-editor bg-white px-5 py-8 text-[#131313] sm:px-8 sm:py-10 md:px-24 md:py-24",
+        class: "editorial-editor px-6 py-8 text-on-surface sm:px-12 sm:py-12 md:px-14 md:py-14",
       },
       handleKeyDown: (_view, event) => {
         const isFindShortcut = (event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f";
@@ -1971,7 +1993,7 @@ const EditorPage = () => {
   ];
 
   const viewMenuItems = [
-    { label: focusMode ? "Exit focus mode" : "Mobile focus mode", action: () => setFocusMode((current) => !current) },
+    { label: focusMode ? "Exit focus mode" : "Focus mode", action: () => setFocusMode((current) => !current) },
     { label: showOutline ? "Hide outline" : "Show outline", action: () => setShowOutline((current) => !current) },
     { label: showAutosaveHistory ? "Hide autosaves" : "Show autosaves", action: () => setShowAutosaveHistory((current) => !current) },
     { label: showActivity ? "Hide activity" : "Show activity", action: () => {
@@ -2058,10 +2080,10 @@ const EditorPage = () => {
       ? new Date(lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : "";
   const versionDiffBlock = selectedVersion ? (
-    <div className="mt-3 rounded border border-white/10 bg-surface-container px-3 py-3">
+    <div className="mt-3 rounded border border-outline bg-surface-container px-3 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Diff preview</p>
-        <span className="text-[10px] font-bold text-primary">
+        <p className="text-[11px] font-medium tracking-normal text-on-surface-variant">Diff preview</p>
+        <span className="text-[10px] font-bold text-accent">
           {loadingVersionDiff
             ? "Loading"
             : versionDiff
@@ -2072,7 +2094,7 @@ const EditorPage = () => {
       {versionDiff ? (
         <div className="grid gap-2">
           <div className="rounded bg-primary/10 p-2">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-primary">Added</p>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-accent">Added</p>
             <p className="mt-1 line-clamp-3 text-xs text-on-surface-variant">{versionDiff.addedPreview || "No additions"}</p>
           </div>
           <div className="rounded bg-tertiary/10 p-2">
@@ -2095,7 +2117,7 @@ const EditorPage = () => {
   if (error && !activeDoc) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="max-w-lg rounded border border-white/10 bg-surface-container p-8 text-center">
+        <div className="max-w-lg rounded border border-outline bg-surface-container p-8 text-center">
           <p className="text-lg font-semibold text-white">Editor unavailable</p>
           <p className="mt-3 text-sm text-error">{error}</p>
           <button type="button" onClick={() => navigate("/dashboard")} className="emerald-primary-button mt-6">
@@ -2107,15 +2129,18 @@ const EditorPage = () => {
   }
 
   return (
-    <div className="workspace-desktop bg-surface text-on-surface selection:bg-primary/30">
-      <header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/5 bg-[#131313] px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
+    <div className={`workspace-desktop editor-workspace bg-background text-on-surface selection:bg-primary/30 ${focusMode ? "is-focus-mode" : ""}`}>
+      <header className="workspace-header sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-outline bg-surface-dim px-3 text-sm font-medium tracking-tight sm:px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3 md:gap-6">
-          <span className="shrink-0 text-base font-bold uppercase tracking-tighter text-white sm:text-xl">Editorial</span>
-          <div className="relative flex items-center gap-2 text-[#a3a3a3]">
+          <div className="flex items-center gap-2">
+            <button type="button" className="workspace-icon-button lg:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(true)}><span className="material-symbols-outlined">menu</span></button>
+            <button type="button" aria-label="Back to workspace" className="workspace-brand" onClick={() => navigate("/dashboard")}><img src="/logo.png" alt="" /><span>Editorial</span></button>
+          </div>
+          <div className="relative flex items-center gap-2 text-on-surface-variant">
             <button
               type="button"
               onClick={() => setOpenMenu((current) => (current ? null : "file"))}
-              className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs font-semibold text-white transition hover:bg-[#201f1f] md:hidden"
+              className="flex items-center gap-1 rounded border border-outline px-2 py-1 text-xs font-semibold text-white transition hover:bg-surface-container-high md:hidden"
             >
               <span className="material-symbols-outlined text-base">menu</span>
               Menu
@@ -2132,9 +2157,9 @@ const EditorPage = () => {
             ))}
 
             {openMenu ? (
-              <div className="absolute right-0 top-11 z-[90] max-h-[70vh] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-white/10 bg-surface-container p-2 shadow-2xl md:left-0 md:right-auto md:min-w-[220px]">
+              <div className="absolute right-0 top-11 z-[90] max-h-[70vh] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-outline bg-surface-container p-2 shadow-2xl md:left-0 md:right-auto md:min-w-[220px]">
                 {openMenu === "file" ? (
-                  <div className="border-b border-white/5 p-2">
+                  <div className="border-b border-outline p-2">
                     <input
                       className="emerald-input"
                       value={titleInput}
@@ -2156,7 +2181,7 @@ const EditorPage = () => {
                     className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm text-white transition hover:bg-surface-container-high"
                   >
                     <span>{item.label}</span>
-                    {item.label === "Rename document" && renaming ? <span className="text-xs text-primary">Saving…</span> : null}
+                    {item.label === "Rename document" && renaming ? <span className="text-xs text-accent">Saving…</span> : null}
                   </button>
                 ))}
               </div>
@@ -2165,92 +2190,39 @@ const EditorPage = () => {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-          <span className={`hidden text-[10px] font-bold uppercase tracking-[0.2em] sm:inline ${socketState === "connected" ? "text-primary" : "text-on-surface-variant"}`}>
+          <span className={`hidden text-[11px] font-medium tracking-wide sm:inline ${socketState === "connected" ? "text-success" : "text-on-surface-variant"}`}>
             {socketState}
           </span>
           <button
             type="button"
             onClick={handleHistoryClick}
             title="Go back"
-            className="material-symbols-outlined text-[#a3a3a3] hover:text-white"
+            className="material-symbols-outlined text-on-surface-variant hover:text-white"
           >
             history
           </button>
-          <button type="button" className="flex h-8 w-8 items-center justify-center rounded border border-white/10 bg-surface-container-high text-xs font-bold text-white">
+          <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full border border-outline bg-surface-container-high text-xs font-bold text-white">
             {activeDoc?.owner.email.slice(0, 1).toUpperCase()}
           </button>
         </div>
       </header>
 
       <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <aside
-          className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/5 bg-[#0e0e0e] pb-4 pt-16 transition-[width] duration-200 lg:flex ${
-            sidebarCollapsed ? "w-20" : "w-64"
-          }`}
-        >
-          <div className={`mb-8 flex gap-3 px-4 ${sidebarCollapsed ? "flex-col items-center" : "items-center justify-between"}`}>
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-container">
-                <span className="material-symbols-outlined text-sm text-primary">grid_view</span>
-              </div>
-              {!sidebarCollapsed ? (
-                <div className="min-w-0">
-                  <div className="text-lg font-bold leading-none text-white">Arena</div>
-                </div>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="rounded p-1.5 text-on-surface-variant transition hover:bg-white/10 hover:text-white"
-              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              <span className="material-symbols-outlined text-lg">
-                {sidebarCollapsed ? "keyboard_double_arrow_right" : "keyboard_double_arrow_left"}
-              </span>
-            </button>
-          </div>
-          <nav className="flex-1 space-y-1 px-4">
-            {[
-              { icon: "grid_view", label: "Workspace", to: "/dashboard" },
-              { icon: "description", label: "Drafts", to: "/drafts" },
-              { icon: "folder_open", label: "Collections", to: "/collections" },
-              { icon: "groups", label: "Team", to: "/teams" },
-              { icon: "settings", label: "Settings", to: "/settings" },
-            ].map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => navigate(item.to)}
-                title={sidebarCollapsed ? item.label : undefined}
-                className={`flex w-full items-center rounded px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest transition-all duration-150 ${
-                  sidebarCollapsed ? "justify-center" : "gap-3"
-                } ${
-                  location.pathname === item.to
-                    ? "border-r-2 border-primary-container bg-[#1c1b1b] text-[#10b981]"
-                    : `text-[#a3a3a3] hover:bg-[#1c1b1b] hover:text-white ${sidebarCollapsed ? "" : "hover:translate-x-1"}`
-                }`}
-              >
-                <span className="material-symbols-outlined">{item.icon}</span>
-                {!sidebarCollapsed ? <span>{item.label}</span> : null}
-              </button>
-            ))}
-          </nav>
-        </aside>
+        <WorkspaceSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
         <main
           className={`relative flex flex-1 flex-col overflow-hidden bg-surface-container-lowest transition-[margin] duration-200 ${
-            sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+            focusMode ? "lg:ml-0" : sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
           }`}
         >
-          <header className={`sticky top-0 z-30 flex min-h-16 flex-col items-stretch justify-between gap-3 border-b border-white/5 bg-surface-container-lowest px-4 py-3 md:h-16 md:flex-row md:items-center md:px-8 md:py-0 ${focusMode ? "max-md:hidden" : ""}`}>
-            <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center md:gap-4">
+          <header className={`sticky top-0 z-30 flex min-h-16 flex-col items-stretch justify-between gap-3 border-b border-outline bg-surface-container-lowest px-4 py-3 md:min-h-[88px] md:flex-row md:items-center md:px-8 md:py-3 ${focusMode ? "max-md:hidden" : ""}`}>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div className="min-w-0 flex-1">
                 <h1 className="line-clamp-2 break-words text-base font-bold leading-snug tracking-tight text-on-surface sm:text-lg md:line-clamp-1">
                   {activeDoc?.title}
                 </h1>
-                <p className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3] sm:block">
-                  Doc ID: {id}
+                <p className="mt-1 hidden text-[11px] font-medium tracking-wide text-on-surface-variant sm:block">
+                  Your document · {wordCount} words
                 </p>
                 {tags.length ? (
                   <div className="mt-2 flex max-w-full flex-wrap gap-1.5">
@@ -2271,26 +2243,26 @@ const EditorPage = () => {
               </div>
 
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2 rounded border border-white/5 bg-surface-container-high px-2 py-0.5">
+                <div className="flex items-center gap-2 rounded border border-outline bg-surface-container-high px-2 py-0.5">
                   <span
                     className={`h-1.5 w-1.5 rounded-full ${
                       saveStatus === "saved"
-                        ? "bg-primary shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                        ? "bg-success"
                         : saveStatus === "error"
                           ? "bg-error"
                           : "bg-secondary"
                     }`}
                   />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3a3]">
+                  <span className="text-[11px] font-medium tracking-normal text-on-surface-variant">
                     {lastSavedLabel ? `${saveStatusLabel} ${lastSavedLabel}` : saveStatusLabel}
                   </span>
                 </div>
                 {activeDoc?.role ? (
-                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(activeDoc.role)}`}>
+                  <span className={`rounded px-2 py-0.5 text-[11px] font-medium tracking-normal ${roleBadgeClass(activeDoc.role)}`}>
                     {activeDoc.role}
                   </span>
                 ) : null}
-                <span className="hidden rounded border border-white/5 bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant md:inline-flex">
+                <span className="hidden rounded border border-outline bg-surface-container-high px-2 py-0.5 text-[11px] font-medium tracking-normal text-on-surface-variant md:inline-flex">
                   {wordCount} words · {readingMinutes} min read · {outlineItems.length} heads
                 </span>
                 {activePresence.length > 0 && (
@@ -2308,7 +2280,7 @@ const EditorPage = () => {
                         </div>
                       ))}
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <span className="text-[11px] font-medium tracking-normal text-on-surface-variant">
                       {activePresence.length} online{idleCount ? ` · ${idleCount} idle` : ""}
                     </span>
                   </div>
@@ -2376,7 +2348,7 @@ const EditorPage = () => {
               <button
                 type="button"
                 onClick={loadDocument}
-                className="flex h-9 w-9 items-center justify-center rounded text-[#a3a3a3] transition hover:bg-[#201f1f] hover:text-white"
+                className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
                 title="Refresh document"
               >
                 <span className="material-symbols-outlined">refresh</span>
@@ -2384,7 +2356,7 @@ const EditorPage = () => {
               <button
                 type="button"
                 onClick={() => setFocusMode((current) => !current)}
-                className="flex h-9 w-9 items-center justify-center rounded text-[#a3a3a3] transition hover:bg-[#201f1f] hover:text-white md:hidden"
+                className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition hover:bg-surface-container-high hover:text-white md:hidden"
                 title={focusMode ? "Exit focus mode" : "Focus mode"}
               >
                 <span className="material-symbols-outlined">{focusMode ? "close_fullscreen" : "open_in_full"}</span>
@@ -2401,10 +2373,10 @@ const EditorPage = () => {
           ) : null}
 
           {localDraftNotice ? (
-            <div className="flex flex-col gap-3 border-b border-primary/20 bg-primary/10 px-4 py-3 text-xs text-primary md:flex-row md:items-center md:justify-between md:px-8">
+            <div className="flex flex-col gap-3 border-b border-primary/20 bg-primary/10 px-4 py-3 text-xs text-accent md:flex-row md:items-center md:justify-between md:px-8">
               <div>
                 <p className="font-bold uppercase tracking-widest">Local recovery</p>
-                <p className="mt-1 text-primary/80">
+                <p className="mt-1 text-accent/80">
                   Draft from {new Date(localDraftNotice.updatedAt).toLocaleString()} is available.
                 </p>
               </div>
@@ -2419,7 +2391,7 @@ const EditorPage = () => {
                 <button
                   type="button"
                   onClick={discardLocalDraft}
-                  className="rounded border border-primary/30 px-3 py-2 font-semibold text-primary"
+                  className="rounded border border-primary/30 px-3 py-2 font-semibold text-accent"
                 >
                   Discard
                 </button>
@@ -2428,16 +2400,16 @@ const EditorPage = () => {
           ) : null}
 
           {activePresence.length ? (
-            <div className={`border-b border-white/5 bg-surface-container-lowest px-4 py-2 md:px-8 ${focusMode ? "max-md:hidden" : ""}`}>
+            <div className={`border-b border-outline bg-surface-container-lowest px-4 py-2 md:px-8 ${focusMode ? "max-md:hidden" : ""}`}>
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-on-surface-variant">
-                <span className="font-bold uppercase tracking-widest text-primary">Collaborators</span>
+                <span className="font-bold uppercase tracking-widest text-accent">Collaborators</span>
                 {activePresence.map((user) => (
                   <span
                     key={user.sessionId}
                     className={`rounded-full border px-2 py-1 ${
                       user.idle
-                        ? "border-white/10 bg-white/5 text-on-surface-variant"
-                        : "border-primary/30 bg-primary/10 text-primary"
+                        ? "border-outline bg-white/5 text-on-surface-variant"
+                        : "border-primary/30 bg-primary/10 text-accent"
                     }`}
                   >
                     {user.email || "Anonymous"} · {user.idle ? "idle" : "active"} · {formatLastSeen(user.lastSeen)}
@@ -2451,12 +2423,12 @@ const EditorPage = () => {
             className={`flex flex-1 overflow-y-auto pb-24 md:px-8 md:pb-32 md:pt-8 ${focusMode ? "px-1 pt-2 sm:px-4" : "px-3 pt-4 sm:px-4"}`}
             onScroll={() => setScrollVersion((current) => current + 1)}
           >
-            <div className={`mx-auto w-full min-w-0 flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[800px]"}`}>
+            <div className={`mx-auto w-full min-w-0 flex-1 ${wideCanvas ? "max-w-[1080px]" : "max-w-[880px]"}`}>
               {showOutline ? (
-                <div className="mb-4 rounded border border-white/10 bg-surface-container-high p-3 shadow-xl md:mb-6">
+                <div className="mb-4 rounded border border-outline bg-surface-container-high p-3 shadow-xl md:mb-6">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Outline</p>
+                      <p className="text-[11px] font-medium tracking-wide text-accent">Outline</p>
                       <p className="mt-1 text-xs text-on-surface-variant">
                         {outlineItems.length ? `${outlineItems.length} heading${outlineItems.length === 1 ? "" : "s"}` : "No headings yet"}
                       </p>
@@ -2480,7 +2452,7 @@ const EditorPage = () => {
                           className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-xs text-on-surface-variant transition hover:bg-white/10 hover:text-white"
                           style={{ paddingLeft: `${8 + Math.max(0, item.level - 1) * 12}px` }}
                         >
-                          <span className="shrink-0 rounded bg-surface-container-low px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">
+                          <span className="shrink-0 rounded bg-surface-container-low px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent">
                             H{item.level}
                           </span>
                           <span className="min-w-0 truncate">{item.text}</span>
@@ -2496,10 +2468,10 @@ const EditorPage = () => {
               ) : null}
 
               {showAutosaveHistory ? (
-                <div className="mb-4 rounded border border-white/10 bg-surface-container-high p-3 shadow-xl md:mb-6">
+                <div className="mb-4 rounded border border-outline bg-surface-container-high p-3 shadow-xl md:mb-6">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Autosaves</p>
+                      <p className="text-[11px] font-medium tracking-wide text-accent">Autosaves</p>
                       <p className="mt-1 text-xs text-on-surface-variant">{autosaveHistory.length} local points</p>
                     </div>
                     <button
@@ -2541,13 +2513,13 @@ const EditorPage = () => {
                 </div>
               ) : null}
 
-              <div className="sticky top-2 z-40 mx-auto mb-6 flex flex-col items-center justify-center gap-2 md:top-4 md:mb-12">
-                <div className="editorial-editor-toolbar flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-2 py-2 shadow-2xl backdrop-blur-xl sm:px-4">
+              <div className="sticky top-2 z-20 mx-auto mb-6 flex flex-col items-center justify-center gap-2 md:top-4 md:mb-8">
+                <div className="editorial-editor-toolbar flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-outline bg-surface-container-highest/90 px-2 py-2 shadow-2xl backdrop-blur-xl sm:px-4">
                   <select
                     value={currentBlockStyle}
                     disabled={editorDisabled}
                     onChange={(event) => applyBlockStyle(event.target.value)}
-                    className="mr-1 h-8 shrink-0 rounded border border-white/10 bg-surface-container px-2 text-xs font-semibold text-white outline-none transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 md:mr-2"
+                    className="mr-1 h-8 shrink-0 rounded border border-outline bg-surface-container px-2 text-xs font-semibold text-white outline-none transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 md:mr-2"
                     title="Block style"
                   >
                     <option value="paragraph">Body</option>
@@ -2670,7 +2642,7 @@ const EditorPage = () => {
                 </div>
 
                 {isTableActive ? (
-                  <div className="editorial-editor-toolbar flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-3 py-2 shadow-xl backdrop-blur-xl">
+                  <div className="editorial-editor-toolbar flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-outline bg-surface-container-highest/90 px-3 py-2 shadow-xl backdrop-blur-xl">
                     {tableToolItems.map((item) => (
                       <button
                         key={item.label}
@@ -2686,8 +2658,8 @@ const EditorPage = () => {
                 ) : null}
 
                 {findOpen ? (
-                  <div className="flex w-full max-w-[calc(100vw-1.5rem)] flex-col items-stretch gap-2 rounded border border-white/10 bg-surface-container-highest/95 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-xl sm:max-w-full sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
-                    <div className="flex w-full items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1 sm:w-auto">
+                  <div className="flex w-full max-w-[calc(100vw-1.5rem)] flex-col items-stretch gap-2 rounded border border-outline bg-surface-container-highest/95 px-3 py-2 text-xs text-white shadow-xl backdrop-blur-xl sm:max-w-full sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
+                    <div className="flex w-full items-center gap-2 rounded border border-outline bg-surface-container px-2 py-1 sm:w-auto">
                       <span className="material-symbols-outlined text-base text-on-surface-variant">search</span>
                       <input
                         value={findQuery}
@@ -2702,7 +2674,7 @@ const EditorPage = () => {
                         placeholder="Find"
                       />
                     </div>
-                    <div className="flex w-full items-center gap-2 rounded border border-white/10 bg-surface-container px-2 py-1 sm:w-auto">
+                    <div className="flex w-full items-center gap-2 rounded border border-outline bg-surface-container px-2 py-1 sm:w-auto">
                       <span className="material-symbols-outlined text-base text-on-surface-variant">edit</span>
                       <input
                         value={replaceQuery}
@@ -2711,14 +2683,14 @@ const EditorPage = () => {
                         placeholder="Replace"
                       />
                     </div>
-                    <span className="min-w-[72px] text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <span className="min-w-[72px] text-center text-[11px] font-medium tracking-normal text-on-surface-variant">
                       {findQuery ? `${findMatches.length ? selectedFindIndex + 1 : 0}/${findMatches.length}` : "0/0"}
                     </span>
                     <button
                       type="button"
                       onClick={() => selectFindMatch(selectedFindIndex - 1)}
                       disabled={!findMatches.length}
-                      className="rounded border border-white/10 px-2 py-1 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded border border-outline px-2 py-1 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                       title="Previous match"
                     >
                       <span className="material-symbols-outlined text-base">keyboard_arrow_up</span>
@@ -2727,12 +2699,12 @@ const EditorPage = () => {
                       type="button"
                       onClick={() => selectFindMatch(selectedFindIndex + 1)}
                       disabled={!findMatches.length}
-                      className="rounded border border-white/10 px-2 py-1 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded border border-outline px-2 py-1 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                       title="Next match"
                     >
                       <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
                     </button>
-                    <label className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <label className="flex items-center gap-1 rounded border border-outline px-2 py-1 text-[11px] font-medium tracking-normal text-on-surface-variant">
                       <input
                         type="checkbox"
                         checked={matchCase}
@@ -2745,7 +2717,7 @@ const EditorPage = () => {
                       type="button"
                       onClick={replaceActiveMatch}
                       disabled={editorDisabled || !findMatches.length}
-                      className="rounded border border-white/10 px-2 py-1 font-semibold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded border border-outline px-2 py-1 font-semibold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Replace
                     </button>
@@ -2753,7 +2725,7 @@ const EditorPage = () => {
                       type="button"
                       onClick={replaceAllMatches}
                       disabled={editorDisabled || !findMatches.length}
-                      className="rounded border border-primary/40 bg-primary/10 px-2 py-1 font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded border border-primary/40 bg-primary/10 px-2 py-1 font-semibold text-accent transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Replace all
                     </button>
@@ -2769,8 +2741,8 @@ const EditorPage = () => {
                 ) : null}
 
                 {canTransformSelection ? (
-                  <div className="flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-white/10 bg-surface-container-highest/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-xl sm:w-auto">
-                    <span className="shrink-0 px-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Selection</span>
+                  <div className="flex w-full max-w-full flex-wrap items-center justify-center gap-1 rounded border border-outline bg-surface-container-highest/90 px-2 py-1.5 text-xs shadow-xl backdrop-blur-xl sm:w-auto">
+                    <span className="shrink-0 px-2 text-[11px] font-medium tracking-normal text-on-surface-variant">Selection</span>
                     <button
                       type="button"
                       disabled={editorDisabled}
@@ -2807,13 +2779,14 @@ const EditorPage = () => {
                 ) : null}
               </div>
 
-              <div ref={editorSurfaceRef} className="relative overflow-hidden rounded-md bg-white shadow-2xl sm:rounded-lg">
-                <div className="border-b border-black/5 bg-white px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#737373] sm:px-8 md:px-24 md:py-5 md:text-xs">
-                  Editorial Canvas · Precision Mode
+              <div ref={editorSurfaceRef} className="editor-canvas relative overflow-hidden rounded-lg">
+                <div className="editor-canvas-heading border-b border-outline px-6 pb-6 pt-8 sm:px-12 md:px-14 md:pt-12">
+                  <p className="mb-3 text-xs text-on-surface-variant">Document</p>
+                  <h2 className="text-3xl font-semibold tracking-tight text-on-surface">{activeDoc?.title}</h2>
                 </div>
 
                 {!editor ? (
-                  <div className="flex min-h-[620px] items-center justify-center bg-white p-8 text-sm text-[#404040] md:min-h-[1200px] md:p-16">
+                  <div className="flex min-h-[620px] items-center justify-center bg-surface p-8 text-sm text-on-surface-variant md:min-h-[1200px] md:p-16">
                     Loading editor...
                   </div>
                 ) : (
@@ -2854,20 +2827,20 @@ const EditorPage = () => {
         </main>
 
         {showComments ? (
-          <aside className="hidden w-80 flex-col gap-6 overflow-y-auto border-l border-white/5 bg-surface p-6 xl:flex">
+          <aside className="editor-review-panel hidden w-80 flex-col gap-6 overflow-y-auto border-l border-outline bg-surface p-6 xl:flex">
             <div className="flex items-center justify-between">
-              <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Comments</h4>
-              <span className="text-[10px] font-bold text-primary">{openCommentCount} Open</span>
+              <h4 className="text-[11px] font-medium tracking-wide text-on-surface-variant">Comments</h4>
+              <span className="text-[10px] font-bold text-accent">{openCommentCount} Open</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 rounded border border-white/5 bg-surface-container-low p-1">
+            <div className="grid grid-cols-3 gap-1 rounded border border-outline bg-surface-container-low p-1">
               {(["open", "resolved", "all"] as const).map((filter) => (
                 <button
                   key={filter}
                   type="button"
                   onClick={() => setCommentFilter(filter)}
-                  className={`rounded px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition ${
-                    commentFilter === filter ? "bg-primary/20 text-primary" : "text-on-surface-variant hover:text-white"
+                  className={`rounded px-2 py-1 text-[11px] font-medium tracking-normal transition ${
+                    commentFilter === filter ? "bg-primary/20 text-accent" : "text-on-surface-variant hover:text-white"
                   }`}
                 >
                   {filter === "open" ? `Open ${openCommentCount}` : filter === "resolved" ? `Done ${resolvedCommentCount}` : "All"}
@@ -2877,15 +2850,15 @@ const EditorPage = () => {
 
             <div className="space-y-3">
               {replyingToCommentId ? (
-                <div className="flex items-center justify-between rounded border border-primary/25 bg-primary/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-primary">
+                <div className="flex items-center justify-between rounded border border-primary/25 bg-primary/10 px-3 py-2 text-[11px] font-medium tracking-normal text-accent">
                   <span>Replying in thread</span>
                   <button type="button" onClick={() => setReplyingToCommentId("")} className="text-on-surface-variant hover:text-white">Cancel</button>
                 </div>
               ) : null}
-              <div className="flex items-center gap-3 rounded border border-white/5 bg-surface-container-high p-3">
-                <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
+              <div className="flex items-center gap-3 rounded border border-outline bg-surface-container-high p-3">
+                <span className="material-symbols-outlined text-sm text-on-surface-variant">chat_bubble</span>
                 <input
-                  className="flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
+                  className="flex-1 border-none bg-transparent text-xs text-white placeholder:text-on-surface-variant focus:ring-0"
                   placeholder={canCommentDocument(activeDoc?.role) ? "Type a comment or @mention an email..." : "View-only access"}
                   value={commentBody}
                   onChange={(event) => setCommentBody(event.target.value)}
@@ -2932,10 +2905,10 @@ const EditorPage = () => {
         ) : null}
 
         {showVersions ? (
-          <aside className="hidden w-80 flex-col gap-6 overflow-y-auto border-l border-white/5 bg-surface p-6 xl:flex">
+          <aside className="editor-review-panel hidden w-80 flex-col gap-6 overflow-y-auto border-l border-outline bg-surface p-6 xl:flex">
             <div className="flex items-center justify-between">
-              <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Version History</h4>
-              <span className="text-[10px] font-bold text-primary">{versions.length} Snapshots</span>
+              <h4 className="text-[11px] font-medium tracking-wide text-on-surface-variant">Version History</h4>
+              <span className="text-[10px] font-bold text-accent">{versions.length} Snapshots</span>
             </div>
 
             <button
@@ -2952,10 +2925,10 @@ const EditorPage = () => {
                 {selectedVersion ? (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-bold uppercase tracking-widest text-primary">Preview</p>
-                      <span className="text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(selectedVersion)).toLocaleString()}</span>
+                      <p className="text-xs font-bold uppercase tracking-widest text-accent">Preview</p>
+                      <span className="text-[9px] text-on-surface-variant">{new Date(getVersionDate(selectedVersion)).toLocaleString()}</span>
                     </div>
-                    <p className="mt-3 text-xs leading-relaxed text-[#bbcabf]">{getVersionPreview(selectedVersion)}</p>
+                    <p className="mt-3 text-xs leading-relaxed text-on-surface-variant">{getVersionPreview(selectedVersion)}</p>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-center">
                       <div className="rounded bg-surface-container px-2 py-2">
                         <p className="text-sm font-bold text-white">{getVersionWordCount(selectedVersion)}</p>
@@ -2967,7 +2940,7 @@ const EditorPage = () => {
                       </div>
                     </div>
                     {selectedVersionDelta ? (
-                      <div className="mt-3 rounded border border-white/10 bg-surface-container px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      <div className="mt-3 rounded border border-outline bg-surface-container px-3 py-2 text-[11px] font-medium tracking-normal text-on-surface-variant">
                         Current is {selectedVersionDelta.words >= 0 ? "+" : ""}{selectedVersionDelta.words} words and {selectedVersionDelta.characters >= 0 ? "+" : ""}{selectedVersionDelta.characters} chars from this snapshot
                       </div>
                     ) : null}
@@ -2993,13 +2966,13 @@ const EditorPage = () => {
                       className={`w-full space-y-2 rounded-lg border p-4 text-left transition-colors ${
                         selectedVersion?.id === version.id
                           ? "border-primary/50 bg-primary/10"
-                          : "border-white/5 bg-surface-container hover:border-primary/50"
+                          : "border-outline bg-surface-container hover:border-primary/50"
                       }`}
                       onClick={() => setSelectedVersionId(version.id)}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[11px] font-bold text-white">Snapshot</span>
-                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(version)).toLocaleString()}</span>
+                        <span className="text-right text-[9px] text-on-surface-variant">{new Date(getVersionDate(version)).toLocaleString()}</span>
                       </div>
                       <p className="line-clamp-2 text-xs leading-relaxed text-on-surface-variant">{getVersionPreview(version)}</p>
                       <div className="flex items-center justify-between text-[9px] uppercase tracking-widest text-on-surface-variant">
@@ -3019,9 +2992,9 @@ const EditorPage = () => {
         ) : null}
 
         {showActivity ? (
-          <aside className="hidden w-80 flex-col gap-5 overflow-y-auto border-l border-white/5 bg-surface p-6 xl:flex">
+          <aside className="editor-review-panel hidden w-80 flex-col gap-5 overflow-y-auto border-l border-outline bg-surface p-6 xl:flex">
             <div className="flex items-center justify-between">
-              <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Activity</h4>
+              <h4 className="text-[11px] font-medium tracking-wide text-on-surface-variant">Activity</h4>
               <button
                 type="button"
                 onClick={() => loadActivity().catch(console.error)}
@@ -3039,9 +3012,9 @@ const EditorPage = () => {
                 {activity.map((item) => {
                   const metadata = formatActivityMetadata(item.metadata);
                   return (
-                    <div key={item.id} className="rounded-lg border border-white/5 bg-surface-container p-4">
+                    <div key={item.id} className="rounded-lg border border-outline bg-surface-container p-4">
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-accent">
                           <span className="material-symbols-outlined text-[18px]">timeline</span>
                         </div>
                         <div className="min-w-0">
@@ -3050,7 +3023,7 @@ const EditorPage = () => {
                           <p className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
                             {new Date(item.createdAt).toLocaleString()}
                           </p>
-                          {metadata ? <p className="mt-2 text-xs leading-relaxed text-[#bbcabf]">{metadata}</p> : null}
+                          {metadata ? <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">{metadata}</p> : null}
                         </div>
                       </div>
                     </div>
@@ -3071,31 +3044,31 @@ const EditorPage = () => {
             onClick={() => setMobilePanel(null)}
           >
             <section
-              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-white/10 bg-surface p-4 shadow-2xl"
+              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-outline bg-surface p-4 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Comments</h4>
-                  <p className="mt-1 text-xs text-primary">{openCommentCount} open</p>
+                  <h4 className="text-[11px] font-medium tracking-wide text-on-surface-variant">Comments</h4>
+                  <p className="mt-1 text-xs text-accent">{openCommentCount} open</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMobilePanel(null)}
-                  className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                  className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
 
-              <div className="mb-4 grid grid-cols-3 gap-1 rounded border border-white/5 bg-surface-container-low p-1">
+              <div className="mb-4 grid grid-cols-3 gap-1 rounded border border-outline bg-surface-container-low p-1">
                 {(["open", "resolved", "all"] as const).map((filter) => (
                   <button
                     key={filter}
                     type="button"
                     onClick={() => setCommentFilter(filter)}
-                    className={`rounded px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition ${
-                      commentFilter === filter ? "bg-primary/20 text-primary" : "text-on-surface-variant active:bg-white/10"
+                    className={`rounded px-2 py-2 text-[11px] font-medium tracking-normal transition ${
+                      commentFilter === filter ? "bg-primary/20 text-accent" : "text-on-surface-variant active:bg-white/10"
                     }`}
                   >
                     {filter === "open" ? `Open ${openCommentCount}` : filter === "resolved" ? `Done ${resolvedCommentCount}` : "All"}
@@ -3104,10 +3077,10 @@ const EditorPage = () => {
               </div>
 
               <div className="mb-5 space-y-3">
-                <div className="flex items-center gap-3 rounded border border-white/5 bg-surface-container-high p-3">
-                  <span className="material-symbols-outlined text-sm text-[#a3a3a3]">chat_bubble</span>
+                <div className="flex items-center gap-3 rounded border border-outline bg-surface-container-high p-3">
+                  <span className="material-symbols-outlined text-sm text-on-surface-variant">chat_bubble</span>
                   <input
-                    className="min-w-0 flex-1 border-none bg-transparent text-xs text-white placeholder-[#a3a3a3] focus:ring-0"
+                    className="min-w-0 flex-1 border-none bg-transparent text-xs text-white placeholder:text-on-surface-variant focus:ring-0"
                     placeholder={canCommentDocument(activeDoc?.role) ? "Type a comment..." : "View-only access"}
                     value={commentBody}
                     onChange={(event) => setCommentBody(event.target.value)}
@@ -3122,7 +3095,7 @@ const EditorPage = () => {
 
               <div className="space-y-3">
                 {replyingToCommentId ? (
-                  <div className="flex items-center justify-between rounded border border-primary/25 bg-primary/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-primary">
+                  <div className="flex items-center justify-between rounded border border-primary/25 bg-primary/10 px-3 py-2 text-[11px] font-medium tracking-normal text-accent">
                     <span>Replying in thread</span>
                     <button type="button" onClick={() => setReplyingToCommentId("")} className="text-on-surface-variant active:text-white">Cancel</button>
                   </div>
@@ -3171,18 +3144,18 @@ const EditorPage = () => {
             onClick={() => setMobilePanel(null)}
           >
             <section
-              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-white/10 bg-surface p-4 shadow-2xl"
+              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-outline bg-surface p-4 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Activity</h4>
-                  <p className="mt-1 text-xs text-primary">{activity.length} events</p>
+                  <h4 className="text-[11px] font-medium tracking-wide text-on-surface-variant">Activity</h4>
+                  <p className="mt-1 text-xs text-accent">{activity.length} events</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMobilePanel(null)}
-                  className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                  className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
@@ -3204,9 +3177,9 @@ const EditorPage = () => {
                   {activity.map((item) => {
                     const metadata = formatActivityMetadata(item.metadata);
                     return (
-                      <div key={`mobile-activity-${item.id}`} className="rounded-lg border border-white/5 bg-surface-container p-4">
+                      <div key={`mobile-activity-${item.id}`} className="rounded-lg border border-outline bg-surface-container p-4">
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-accent">
                             <span className="material-symbols-outlined text-[18px]">timeline</span>
                           </div>
                           <div className="min-w-0">
@@ -3215,7 +3188,7 @@ const EditorPage = () => {
                             <p className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
                               {new Date(item.createdAt).toLocaleString()}
                             </p>
-                            {metadata ? <p className="mt-2 text-xs leading-relaxed text-[#bbcabf]">{metadata}</p> : null}
+                            {metadata ? <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">{metadata}</p> : null}
                           </div>
                         </div>
                       </div>
@@ -3237,18 +3210,18 @@ const EditorPage = () => {
             onClick={() => setMobilePanel(null)}
           >
             <section
-              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-white/10 bg-surface p-4 shadow-2xl"
+              className="max-h-[82vh] w-full overflow-y-auto rounded-t-lg border-t border-outline bg-surface p-4 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a3a3a3]">Version History</h4>
-                  <p className="mt-1 text-xs text-primary">{versions.length} snapshots</p>
+                  <h4 className="text-[11px] font-medium tracking-wide text-on-surface-variant">Version History</h4>
+                  <p className="mt-1 text-xs text-accent">{versions.length} snapshots</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMobilePanel(null)}
-                  className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                  className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
@@ -3268,10 +3241,10 @@ const EditorPage = () => {
                   {selectedVersion ? (
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-bold uppercase tracking-widest text-primary">Selected snapshot</p>
-                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(selectedVersion)).toLocaleString()}</span>
+                        <p className="text-xs font-bold uppercase tracking-widest text-accent">Selected snapshot</p>
+                        <span className="text-right text-[9px] text-on-surface-variant">{new Date(getVersionDate(selectedVersion)).toLocaleString()}</span>
                       </div>
-                      <p className="mt-3 text-xs leading-relaxed text-[#bbcabf]">{getVersionPreview(selectedVersion)}</p>
+                      <p className="mt-3 text-xs leading-relaxed text-on-surface-variant">{getVersionPreview(selectedVersion)}</p>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-center">
                         <div className="rounded bg-surface-container px-2 py-2">
                           <p className="text-sm font-bold text-white">{getVersionWordCount(selectedVersion)}</p>
@@ -3283,7 +3256,7 @@ const EditorPage = () => {
                         </div>
                       </div>
                       {selectedVersionDelta ? (
-                        <div className="mt-3 rounded border border-white/10 bg-surface-container px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        <div className="mt-3 rounded border border-outline bg-surface-container px-3 py-2 text-[11px] font-medium tracking-normal text-on-surface-variant">
                           Current is {selectedVersionDelta.words >= 0 ? "+" : ""}{selectedVersionDelta.words} words and {selectedVersionDelta.characters >= 0 ? "+" : ""}{selectedVersionDelta.characters} chars from this snapshot
                         </div>
                       ) : null}
@@ -3309,13 +3282,13 @@ const EditorPage = () => {
                       className={`w-full space-y-2 rounded-lg border p-4 text-left transition-colors ${
                         selectedVersion?.id === version.id
                           ? "border-primary/50 bg-primary/10"
-                          : "border-white/5 bg-surface-container active:border-primary/50"
+                          : "border-outline bg-surface-container active:border-primary/50"
                       }`}
                       onClick={() => setSelectedVersionId(version.id)}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[11px] font-bold text-white">Snapshot</span>
-                        <span className="text-right text-[9px] text-[#a3a3a3]">{new Date(getVersionDate(version)).toLocaleString()}</span>
+                        <span className="text-right text-[9px] text-on-surface-variant">{new Date(getVersionDate(version)).toLocaleString()}</span>
                       </div>
                       <p className="line-clamp-2 text-xs leading-relaxed text-on-surface-variant">{getVersionPreview(version)}</p>
                       <div className="flex items-center justify-between text-[9px] uppercase tracking-widest text-on-surface-variant">
@@ -3339,7 +3312,7 @@ const EditorPage = () => {
         <button
           type="button"
           onClick={() => setFocusMode(false)}
-          className="fixed bottom-4 right-4 z-[90] flex items-center gap-2 rounded-full border border-white/10 bg-[#131313] px-4 py-3 text-xs font-bold uppercase tracking-widest text-white shadow-2xl md:hidden"
+          className="fixed bottom-4 right-4 z-[90] flex items-center gap-2 rounded-full border border-outline bg-surface-dim px-4 py-3 text-xs font-bold uppercase tracking-widest text-white shadow-2xl md:hidden"
         >
           <span className="material-symbols-outlined text-base">close_fullscreen</span>
           Exit focus
@@ -3348,12 +3321,12 @@ const EditorPage = () => {
 
       {workflowOpen ? (
         <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/75 sm:items-center sm:px-4">
-          <div className="editorial-panel max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-lg border border-outline-variant/10 p-5 shadow-2xl sm:rounded-lg">
-            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Workflow</p><h2 className="mt-2 text-2xl font-bold text-white">Suggestions and deadlines</h2></div><button type="button" onClick={() => setWorkflowOpen(false)} className="rounded p-2 text-on-surface-variant hover:bg-white/10"><span className="material-symbols-outlined">close</span></button></div>
-            {workflowNotice ? <p className="mt-4 rounded border border-white/10 bg-surface px-3 py-2 text-sm text-on-surface-variant">{workflowNotice}</p> : null}
+          <div className="editorial-panel max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-lg border border-outline p-5 shadow-2xl sm:rounded-lg">
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[11px] font-medium tracking-wide text-accent">Workflow</p><h2 className="mt-2 text-2xl font-bold text-white">Suggestions and deadlines</h2></div><button type="button" onClick={() => setWorkflowOpen(false)} className="rounded p-2 text-on-surface-variant hover:bg-white/10"><span className="material-symbols-outlined">close</span></button></div>
+            {workflowNotice ? <p className="mt-4 rounded border border-outline bg-surface px-3 py-2 text-sm text-on-surface-variant">{workflowNotice}</p> : null}
             <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              <section className="rounded border border-white/10 bg-surface p-4"><h3 className="font-bold text-white">Deadlines</h3>{canEditDocument(activeDoc?.role) ? <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><input className="emerald-input" placeholder="Deadline title" value={deadlineTitle} onChange={(event) => setDeadlineTitle(event.target.value)} /><input className="emerald-input" type="datetime-local" value={deadlineDueAt} onChange={(event) => setDeadlineDueAt(event.target.value)} /><button type="button" disabled={workflowBusy} onClick={() => createDeadlineItem().catch(console.error)} className="emerald-primary-button justify-center">Add</button></div> : null}<div className="mt-4 space-y-2">{deadlines.length ? deadlines.map((item) => <div key={item.id} className="rounded border border-white/5 bg-surface-container p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-white">{item.title}</p><p className="mt-1 text-xs text-on-surface-variant">{new Date(item.dueAt).toLocaleString()} · {item.status}</p></div>{canEditDocument(activeDoc?.role) && item.status === "open" ? <button type="button" onClick={() => updateDeadlineStatus(item, "completed").catch(console.error)} className="text-xs font-semibold text-primary">Complete</button> : null}</div></div>) : <p className="text-sm text-on-surface-variant">No deadlines.</p>}</div></section>
-              <section className="rounded border border-white/10 bg-surface p-4"><h3 className="font-bold text-white">Suggestion mode</h3><p className="mt-1 text-xs leading-5 text-on-surface-variant">Select text in the document, enter the proposed replacement, and add it for review. The document is unchanged until acceptance.</p>{canCommentDocument(activeDoc?.role) ? <div className="mt-4 flex gap-2"><input className="emerald-input min-w-0 flex-1" placeholder="Proposed replacement (blank deletes)" value={suggestionReplacement} onChange={(event) => setSuggestionReplacement(event.target.value)} /><button type="button" disabled={workflowBusy} onClick={() => createSuggestionItem().catch(console.error)} className="emerald-primary-button justify-center">Suggest</button></div> : null}<div className="mt-4 space-y-2">{suggestions.length ? suggestions.map((item) => <div key={item.id} className="rounded border border-white/5 bg-surface-container p-3"><p className="text-xs text-error line-through">{item.originalText}</p><p className="mt-1 text-xs text-primary">{item.replacementText || "Delete selection"}</p><p className="mt-2 text-[10px] uppercase tracking-widest text-on-surface-variant">{item.createdBy.email} · {item.status}</p>{item.status === "open" && canEditDocument(activeDoc?.role) ? <div className="mt-3 flex gap-2"><button type="button" onClick={() => decideSuggestionItem(item, "accepted").catch(console.error)} className="emerald-primary-button px-3 py-2 text-xs">Accept</button><button type="button" onClick={() => decideSuggestionItem(item, "rejected").catch(console.error)} className="emerald-muted-button px-3 py-2 text-xs">Reject</button></div> : null}</div>) : <p className="text-sm text-on-surface-variant">No suggestions.</p>}</div></section>
+              <section className="rounded border border-outline bg-surface p-4"><h3 className="font-bold text-white">Deadlines</h3>{canEditDocument(activeDoc?.role) ? <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><input className="emerald-input" placeholder="Deadline title" value={deadlineTitle} onChange={(event) => setDeadlineTitle(event.target.value)} /><input className="emerald-input" type="datetime-local" value={deadlineDueAt} onChange={(event) => setDeadlineDueAt(event.target.value)} /><button type="button" disabled={workflowBusy} onClick={() => createDeadlineItem().catch(console.error)} className="emerald-primary-button justify-center">Add</button></div> : null}<div className="mt-4 space-y-2">{deadlines.length ? deadlines.map((item) => <div key={item.id} className="rounded border border-outline bg-surface-container p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-white">{item.title}</p><p className="mt-1 text-xs text-on-surface-variant">{new Date(item.dueAt).toLocaleString()} · {item.status}</p></div>{canEditDocument(activeDoc?.role) && item.status === "open" ? <button type="button" onClick={() => updateDeadlineStatus(item, "completed").catch(console.error)} className="text-xs font-semibold text-accent">Complete</button> : null}</div></div>) : <p className="text-sm text-on-surface-variant">No deadlines.</p>}</div></section>
+              <section className="rounded border border-outline bg-surface p-4"><h3 className="font-bold text-white">Suggestion mode</h3><p className="mt-1 text-xs leading-5 text-on-surface-variant">Select text in the document, enter the proposed replacement, and add it for review. The document is unchanged until acceptance.</p>{canCommentDocument(activeDoc?.role) ? <div className="mt-4 flex gap-2"><input className="emerald-input min-w-0 flex-1" placeholder="Proposed replacement (blank deletes)" value={suggestionReplacement} onChange={(event) => setSuggestionReplacement(event.target.value)} /><button type="button" disabled={workflowBusy} onClick={() => createSuggestionItem().catch(console.error)} className="emerald-primary-button justify-center">Suggest</button></div> : null}<div className="mt-4 space-y-2">{suggestions.length ? suggestions.map((item) => <div key={item.id} className="rounded border border-outline bg-surface-container p-3"><p className="text-xs text-error line-through">{item.originalText}</p><p className="mt-1 text-xs text-accent">{item.replacementText || "Delete selection"}</p><p className="mt-2 text-[10px] uppercase tracking-widest text-on-surface-variant">{item.createdBy.email} · {item.status}</p>{item.status === "open" && canEditDocument(activeDoc?.role) ? <div className="mt-3 flex gap-2"><button type="button" onClick={() => decideSuggestionItem(item, "accepted").catch(console.error)} className="emerald-primary-button px-3 py-2 text-xs">Accept</button><button type="button" onClick={() => decideSuggestionItem(item, "rejected").catch(console.error)} className="emerald-muted-button px-3 py-2 text-xs">Reject</button></div> : null}</div>) : <p className="text-sm text-on-surface-variant">No suggestions.</p>}</div></section>
             </div>
           </div>
         </div>
@@ -3361,23 +3334,23 @@ const EditorPage = () => {
 
       {shareModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 px-0 sm:items-center sm:px-4">
-          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:rounded-lg sm:p-6">
+          <div className="editorial-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-lg border border-outline p-4 shadow-2xl sm:rounded-lg sm:p-6">
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Share</p>
+                <p className="text-[11px] font-medium tracking-wide text-accent">Share</p>
                 <h2 className="mt-2 text-2xl font-bold text-white">Share document</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setShareModalOpen(false)}
-                className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
             <div className="space-y-5">
-              <div className="rounded border border-white/5 bg-surface p-4">
+              <div className="rounded border border-outline bg-surface p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Access link</p>
@@ -3398,7 +3371,7 @@ const EditorPage = () => {
                     <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">People</p>
                   </div>
                   <div className="rounded bg-surface-container-high px-3 py-2">
-                    <p className="text-lg font-bold text-primary">
+                    <p className="text-lg font-bold text-accent">
                       {activeDoc?.collaborators.filter((item) => item.role === "editor").length || 0}
                     </p>
                     <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Editors</p>
@@ -3421,7 +3394,7 @@ const EditorPage = () => {
                 <div className="rounded border border-primary/20 bg-primary/5 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest text-primary">Public read-only link</p>
+                      <p className="text-xs font-bold uppercase tracking-widest text-accent">Public read-only link</p>
                       <p className="mt-1 text-xs leading-5 text-on-surface-variant">
                         Anyone with this link can read the document until it expires. Editing and comments stay disabled.
                       </p>
@@ -3430,7 +3403,7 @@ const EditorPage = () => {
                       <select
                         value={publicLinkExpiry}
                         onChange={(event) => setPublicLinkExpiry(event.target.value)}
-                        className="h-9 rounded border border-white/10 bg-surface px-2 text-xs text-white"
+                        className="h-9 rounded border border-outline bg-surface px-2 text-xs text-white"
                         aria-label="Public link expiration"
                       >
                         <option value="1">1 hour</option>
@@ -3468,7 +3441,7 @@ const EditorPage = () => {
                 </div>
               ) : null}
               <div className="space-y-1.5">
-                <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="share-emails">
+                <label className="block px-1 text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="share-emails">
                   Collaborator Emails
                 </label>
                 <textarea
@@ -3480,12 +3453,12 @@ const EditorPage = () => {
                 />
               </div>
               {shareNotice ? (
-                <div className="rounded border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-primary">
+                <div className="rounded border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-accent">
                   {shareNotice}
                 </div>
               ) : null}
               <div className="space-y-1.5">
-                <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="share-role">
+                <label className="block px-1 text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="share-role">
                   Access
                 </label>
                 <select
@@ -3500,7 +3473,7 @@ const EditorPage = () => {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="block px-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant" htmlFor="doc-tags">
+                <label className="block px-1 text-[11px] font-medium tracking-normal text-on-surface-variant" htmlFor="doc-tags">
                   Tags (comma separated)
                 </label>
                 <input
@@ -3512,7 +3485,7 @@ const EditorPage = () => {
                   disabled={!canEditDocument(activeDoc?.role)}
                 />
               </div>
-              <div className="rounded border border-white/5 bg-surface p-4">
+              <div className="rounded border border-outline bg-surface p-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current collaborators</p>
                 <div className="mt-3 space-y-2">
 	                  {activeDoc?.collaborators.length ? (
@@ -3534,14 +3507,14 @@ const EditorPage = () => {
 	                              value={item.role}
 	                              disabled={savingShare || removingCollaboratorEmail === item.email}
 	                              onChange={(event) => changeCollaboratorRole(item.email, event.target.value as ShareRole).catch(console.error)}
-	                              className="h-8 rounded border border-white/10 bg-surface px-2 text-xs font-semibold text-white outline-none"
+	                              className="h-8 rounded border border-outline bg-surface px-2 text-xs font-semibold text-white outline-none"
 	                            >
 	                              <option value="editor">Editor</option>
 	                              <option value="commenter">Commenter</option>
 	                              <option value="viewer">Viewer</option>
 	                            </select>
 	                          ) : (
-	                            <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${roleBadgeClass(item.role)}`}>
+	                            <span className={`rounded px-2 py-0.5 text-[11px] font-medium tracking-normal ${roleBadgeClass(item.role)}`}>
 	                              {item.role}
 	                            </span>
 	                          )}
@@ -3552,7 +3525,7 @@ const EditorPage = () => {
 	                                onClick={() => resendCollaboratorAccess(item.email).catch(console.error)}
 	                                disabled={savingShare || removingCollaboratorEmail === item.email}
 	                                title={`Resend access to ${item.email}`}
-	                                className="flex h-8 w-8 items-center justify-center rounded border border-white/10 bg-surface text-on-surface-variant transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+	                                className="flex h-8 w-8 items-center justify-center rounded border border-outline bg-surface text-on-surface-variant transition hover:border-primary/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
 	                              >
 	                                <span className="material-symbols-outlined text-[17px]">
 	                                  {removingCollaboratorEmail === item.email ? "hourglass_empty" : "forward_to_inbox"}
@@ -3580,7 +3553,7 @@ const EditorPage = () => {
                 </div>
               </div>
               {activeDoc?.role === "owner" ? (
-                <div className="rounded border border-white/5 bg-surface p-4">
+                <div className="rounded border border-outline bg-surface p-4">
                   <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Owner transfer</p>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                     <input
@@ -3626,11 +3599,11 @@ const EditorPage = () => {
       ) : null}
 
       {aiOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 sm:items-center sm:px-4">
-          <div className="editorial-panel max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-lg border border-outline-variant/10 p-5 shadow-2xl sm:rounded-lg">
+        <div className="editor-ai-overlay fixed inset-0 z-[80] flex items-end justify-center bg-black/75 sm:items-center sm:px-4" role="dialog" aria-modal="true" aria-labelledby="writing-assistant-title">
+          <div className="editorial-panel editor-ai-panel max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-lg border border-outline p-5 shadow-2xl sm:rounded-lg">
             <div className="flex items-start justify-between gap-4">
-              <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">NVIDIA NEMOTRON</p><h2 className="mt-2 text-xl font-bold text-white">Writing assistant</h2></div>
-              <button type="button" onClick={() => setAiOpen(false)} className="rounded p-2 text-on-surface-variant hover:bg-white/10"><span className="material-symbols-outlined">close</span></button>
+              <div><p className="text-[11px] font-medium tracking-wide text-accent">NVIDIA NEMOTRON</p><h2 id="writing-assistant-title" className="mt-2 text-xl font-semibold text-white">Writing assistant</h2></div>
+              <button type="button" onClick={() => setAiOpen(false)} aria-label="Close writing assistant" className="rounded p-2 text-on-surface-variant hover:bg-white/10"><span className="material-symbols-outlined">close</span></button>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-on-surface-variant">Action
@@ -3659,10 +3632,10 @@ const EditorPage = () => {
 
       {exportPreviewFormat ? (
         <div className="fixed inset-0 z-[75] flex items-end justify-center bg-black/75 px-0 sm:items-center sm:px-4">
-          <div className="editorial-panel flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-lg border border-outline-variant/10 p-4 shadow-2xl sm:max-h-[86vh] sm:rounded-lg sm:p-6">
+          <div className="editorial-panel flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-lg border border-outline p-4 shadow-2xl sm:max-h-[86vh] sm:rounded-lg sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Export preview</p>
+                <p className="text-[11px] font-medium tracking-wide text-accent">Export preview</p>
                 <h2 className="mt-2 text-2xl font-bold text-white">{exportPreviewTitle}</h2>
                 <p className="mt-1 text-xs text-on-surface-variant">
                   {activeDoc?.title || "Untitled"} · {wordCount} words
@@ -3671,7 +3644,7 @@ const EditorPage = () => {
               <button
                 type="button"
                 onClick={() => setExportPreviewFormat(null)}
-                className="rounded p-2 text-[#a3a3a3] transition hover:bg-surface-container-high hover:text-white"
+                className="rounded p-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-white"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -3685,8 +3658,8 @@ const EditorPage = () => {
                   onClick={() => setExportPreviewFormat(format)}
                   className={`rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-widest transition ${
                     exportPreviewFormat === format
-                      ? "border-primary bg-primary/15 text-primary"
-                      : "border-white/10 text-on-surface-variant hover:text-white"
+                      ? "border-primary bg-primary/15 text-accent"
+                      : "border-outline text-on-surface-variant hover:text-white"
                   }`}
                 >
                   {format}
@@ -3694,7 +3667,7 @@ const EditorPage = () => {
               ))}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-white/10 bg-white p-4 text-[#171717] sm:p-6">
+            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-outline bg-surface p-4 text-on-surface sm:p-6">
               {exportPreviewFormat === "html" ? (
                 <div
                   className="prose max-w-none"

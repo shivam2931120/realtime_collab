@@ -202,10 +202,10 @@ const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
   return (
     <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/70 px-3 pt-16 sm:px-6 sm:pt-24" onMouseDown={onClose}>
       <div
-        className="editorial-panel w-full max-w-2xl overflow-hidden rounded-lg border border-outline-variant/10 shadow-2xl"
+        className="editorial-panel w-full max-w-2xl overflow-hidden rounded-lg border border-outline shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+        <div className="flex items-center gap-3 border-b border-outline px-4 py-3">
           <span className="material-symbols-outlined text-on-surface-variant">search</span>
           <input
             ref={inputRef}
@@ -216,7 +216,7 @@ const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
             placeholder="Search or run a command"
           />
           {loading || creating ? (
-            <span className="material-symbols-outlined animate-spin text-base text-primary">progress_activity</span>
+            <span className="material-symbols-outlined animate-spin text-base text-accent">progress_activity</span>
           ) : null}
         </div>
 
@@ -232,7 +232,7 @@ const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
                 onMouseEnter={() => setSelectedIndex(index)}
                 disabled={creating && action.id === "new-document"}
                 className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition ${
-                  selectedIndex === index ? "bg-primary/15 text-primary" : "text-white hover:bg-white/5"
+                  selectedIndex === index ? "bg-primary/15 text-accent" : "text-white hover:bg-white/5"
                 } disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 <span className="material-symbols-outlined text-[18px]">{action.icon}</span>
@@ -242,7 +242,7 @@ const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
           </div>
 
           {results.length ? (
-            <div className="border-t border-white/10 pt-2">
+            <div className="border-t border-outline pt-2">
               {results.map((result, index) => {
                 const itemIndex = actions.length + index;
                 return (
@@ -259,7 +259,7 @@ const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <span className="material-symbols-outlined mt-0.5 text-[18px] text-primary">description</span>
+                      <span className="material-symbols-outlined mt-0.5 text-[18px] text-accent">description</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">{result.title}</p>
                         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-on-surface-variant">
@@ -272,7 +272,7 @@ const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
                             </span>
                           ) : null}
                           {(result.tags || []).slice(0, 3).map((tag) => (
-                            <span key={`${result.id}-${tag}`} className="rounded bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                            <span key={`${result.id}-${tag}`} className="rounded bg-primary/10 px-2 py-0.5 text-[10px] text-accent">
                               #{tag}
                             </span>
                           ))}
