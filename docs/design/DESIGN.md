@@ -8,7 +8,7 @@ References: https://linear.app/now/behind-the-latest-design-refresh and https://
 
 ## Single source of truth
 
-`frontend/design-tokens.json` defines color, corner radius, and fonts. `npm run theme` generates `frontend/public/theme.css`; `npm run build` also regenerates it. Tailwind consumes its RGB variables, MUI and Clerk consume the same JSON, and the static public pages import the generated stylesheet.
+`frontend/design-tokens.json` defines color, corner radius, and fonts. `npm run theme` generates `frontend/public/theme.css`; `npm run build` also regenerates it. Tailwind explicitly loads the tracked `tailwind.config.ts` (never an ignored generated JavaScript config) and consumes its RGB variables, MUI and Clerk consume the same JSON, and the static public pages import the generated stylesheet.
 
 - Background #111214; sidebar #16181c; panels #1d2025; raised controls #262a31.
 - Main text #f2f3f5; secondary #a7adb7; tertiary #858d9b.
